@@ -584,6 +584,14 @@ body {
 }
 .diag-hist-btn:hover { background: rgba(74,167,133,0.20); }
 
+.io-badge {
+  display: inline-block; font-size: 9px; font-weight: 700;
+  padding: 1px 5px; border-radius: 3px; vertical-align: middle;
+  margin-right: 5px; letter-spacing: 0.4px; line-height: 16px;
+}
+.io-in  { background: rgba(34,139,230,0.10); color: #1565c0; border: 1px solid rgba(34,139,230,0.25); }
+.io-out { background: rgba(230,100,20,0.10);  color: #b84800; border: 1px solid rgba(230,100,20,0.25); }
+
 .diag-expanded-row td { background: var(--surface) !important; padding: 0; }
 .diag-expand-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
 .diag-elem-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }

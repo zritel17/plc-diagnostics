@@ -40,6 +40,13 @@ window.Diagnostics = (() => {
     }
     function ea(s) { return String(s ?? '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
+    // Allen-Bradley physical I/O: Local:N:I... = input, Local:N:O... = output
+    function ioDir(name) {
+        if (/:\d+:I($|[\.\[])/i.test(name)) return 'in';
+        if (/:\d+:O($|[\.\[])/i.test(name)) return 'out';
+        return null;
+    }
+
     function flatRows() {
         const rows = [];
         const td = window.tagsData || {};
@@ -56,7 +63,11 @@ window.Diagnostics = (() => {
         const type = (r.type || '').toUpperCase();
         if (favOnly && !favs.has(r.name)) return false;
         if (searchQ && !name.includes(searchQ)) return false;
-        if (typeF && type !== typeF) return false;
+        if (typeF) {
+            if      (typeF === 'IO_IN')  { if (ioDir(r.name) !== 'in')  return false; }
+            else if (typeF === 'IO_OUT') { if (ioDir(r.name) !== 'out') return false; }
+            else if (type !== typeF) return false;
+        }
         return true;
     }
 
@@ -105,6 +116,8 @@ window.Diagnostics = (() => {
         const isStr  = type === 'STRING';
         const canExpand = isDint || isDintArr;
         const isExp = expanded.has(r.name);
+        const dir = ioDir(r.name);
+        const isInput = dir === 'in';
 
         const valClass = isBool ? (r.value === '1' ? 'val-bool-on' : 'val-bool-off')
                        : isReal ? 'val-real'
@@ -112,19 +125,22 @@ window.Diagnostics = (() => {
                        : 'val-num';
 
         const displayVal = r.is_array ? `[${r.array_size}]` : esc(r.value);
+        const ioBadge = dir ? `<span class="io-badge io-${dir}">${dir === 'in' ? 'IN' : 'OUT'}</span>` : '';
 
         let actions = '';
-        if (isBool) {
-            actions = `<span class="bool-btn bool-btn-toggle" onclick="(function(e){e.stopPropagation();window.toggleBool&&window.toggleBool('${ea(r.name)}',e)})(event)">⇄ Toggle</span>
-                       <span class="bool-btn bool-btn-momentary"
-                         onmousedown="window.momentaryDown&&window.momentaryDown('${ea(r.name)}',this,event)"
-                         onmouseup="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)"
-                         onmouseleave="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)"
-                         ontouchstart="window.momentaryDown&&window.momentaryDown('${ea(r.name)}',this,event)"
-                         ontouchend="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)"
-                         ontouchcancel="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)">⏺ Момент.</span>`;
-        } else if (!r.is_array) {
-            actions = `<span class="diag-edit-btn" onclick="window.editValue&&window.editValue('${ea(r.name)}')">✎ Запись</span>`;
+        if (!isInput) {
+            if (isBool) {
+                actions = `<span class="bool-btn bool-btn-toggle" onclick="(function(e){e.stopPropagation();window.toggleBool&&window.toggleBool('${ea(r.name)}',e)})(event)">⇄ Toggle</span>
+                           <span class="bool-btn bool-btn-momentary"
+                             onmousedown="window.momentaryDown&&window.momentaryDown('${ea(r.name)}',this,event)"
+                             onmouseup="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)"
+                             onmouseleave="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)"
+                             ontouchstart="window.momentaryDown&&window.momentaryDown('${ea(r.name)}',this,event)"
+                             ontouchend="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)"
+                             ontouchcancel="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)">⏺ Момент.</span>`;
+            } else if (!r.is_array) {
+                actions = `<span class="diag-edit-btn" onclick="window.editValue&&window.editValue('${ea(r.name)}')">✎ Запись</span>`;
+            }
         }
 
         const fullType = r.type + (r.is_array ? '[]' : '');
@@ -132,7 +148,7 @@ window.Diagnostics = (() => {
 
         return `<tr class="diag-row${canExpand ? ' expandable' : ''}" data-name="${ea(r.name)}">
             <td class="diag-fav" onclick="Diagnostics._fav('${ea(r.name)}')">${isFav ? '★' : '☆'}</td>
-            <td class="tag-name-cell" style="font-size:11px;">${esc(r.name)}</td>
+            <td class="tag-name-cell" style="font-size:11px;">${ioBadge}${esc(r.name)}</td>
             <td><span class="type-badge">${esc(r.type)}${r.is_array ? '[]' : ''}</span></td>
             <td><span class="diag-val ${valClass}" data-value-of="${ea(r.name)}">${displayVal}</span></td>
             <td class="diag-actions">
