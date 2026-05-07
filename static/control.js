@@ -9,6 +9,10 @@ window.ControlPanel = (() => {
     let widgets = [];
     let refreshTimer = null;
     let dragSrc = null;
+    // tag -> expiry ms: блокирует updateValues от перезаписи после нажатия
+    const ctrlPending = new Map();
+    // теги удерживаемых momentary кнопок
+    const holdingTags = new Set();
 
     // ── persistence ──────────────────────────────────────────────────────────
     function load() {
@@ -189,18 +193,26 @@ window.ControlPanel = (() => {
     // ── public handlers (called from inline HTML) ─────────────────────────────
     function _mdown(tag, btn) {
         btn && btn.classList.add('holding');
+        holdingTags.add(tag);
         write(tag, '1');
     }
     function _mup(tag, btn) {
         if (!btn || !btn.classList.contains('holding')) return;
         btn.classList.remove('holding');
+        holdingTags.delete(tag);
         write(tag, '0');
     }
     function _toggle(tag, btn) {
-        const cur = getTagValue(tag);
+        // читаем из pending если есть, иначе из ПЛК
+        const cur = ctrlPending.has(tag) ? ctrlPending.get(tag).value : getTagValue(tag);
         const next = (cur === '1' || cur === true) ? '0' : '1';
         write(tag, next);
-        setTimeout(updateValues, 50);
+        // блокируем updateValues от перезаписи на 3 секунды, сразу обновляем DOM
+        ctrlPending.set(tag, { value: next, expires: Date.now() + 3000 });
+        if (btn) {
+            btn.classList.toggle('active', next === '1');
+            btn.textContent = next === '1' ? '● ВКЛ' : '○ ВЫКЛ';
+        }
     }
     function _writeForm(tag, form) {
         const inp = form.querySelector('input');
@@ -222,6 +234,12 @@ window.ControlPanel = (() => {
             const isOn = val === '1' || val === true;
 
             if (w.type === 'maintained_button') {
+                // пропускаем пока pending не истёк
+                const p = ctrlPending.get(w.tag);
+                if (p) {
+                    if (Date.now() < p.expires) continue;
+                    ctrlPending.delete(w.tag);
+                }
                 const btn = card.querySelector('.ctrl-maintained');
                 if (btn) {
                     btn.classList.toggle('active', isOn);
@@ -347,6 +365,10 @@ window.ControlPanel = (() => {
         document.getElementById('ctrlAddWidgetBtn')?.addEventListener('click', addWidget);
         document.getElementById('ctrlFavOnly')?.addEventListener('change', populateTagSelect);
         document.getElementById('ctrlWType')?.addEventListener('change', onTypeChange);
+        // при уходе со страницы сбрасываем удерживаемые кнопки
+        window.addEventListener('beforeunload', () => {
+            holdingTags.forEach(tag => write(tag, '0'));
+        });
     }
 
     return { init, onShow, updateValues, _mdown, _mup, _toggle, _write: _writeForm };
