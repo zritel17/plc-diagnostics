@@ -77,6 +77,14 @@ window.ControlPanel = (() => {
             const card = document.createElement('div');
             card.className = w.type === 'section' ? 'ctrl-section-card' : 'ctrl-widget';
             card.dataset.wid = w.id;
+            // тег как tooltip при наведении
+            if (w.type !== 'section') card.title = w.tag || '';
+            // начальное состояние индикатора карточки
+            if (w.type === 'indicator' || (w.indicatorTag && BUTTON_TYPES.has(w.type))) {
+                const indTag = w.type === 'indicator' ? w.tag : w.indicatorTag;
+                const iv = getTagValue(indTag);
+                if (iv === '1' || iv === true) card.classList.add('ctrl-ind-on');
+            }
             card.innerHTML = renderWidget(w);
             bindWidgetEvents(card, w);
 
@@ -131,18 +139,7 @@ window.ControlPanel = (() => {
         const isOn = val === '1' || val === true;
         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-        const header = `<div class="ctrl-w-label">${esc(w.label || w.tag)}</div>
-                        <div class="ctrl-w-tag muted">${esc(w.tag)}</div>`;
-
-        function indicatorHtml() {
-            if (!w.indicatorTag) return '';
-            const iv = getTagValue(w.indicatorTag) ?? '—';
-            const iOn = iv === '1' || iv === true;
-            return `<div class="ctrl-ind-secondary ${iOn ? 'on' : 'off'}" data-ind-tag="${esc(w.indicatorTag)}">
-                <div class="ctrl-indicator-bulb"></div>
-                <div class="ctrl-indicator-val">${iOn ? 'ВКЛ' : 'ВЫКЛ'}</div>
-            </div>`;
-        }
+        const header = `<div class="ctrl-w-label">${esc(w.label || w.tag)}</div>`;
 
         switch (w.type) {
             case 'section':
@@ -156,19 +153,16 @@ window.ControlPanel = (() => {
                     onmouseleave="ControlPanel._mup('${esc(w.tag)}',this)"
                     ontouchstart="ControlPanel._mdown('${esc(w.tag)}',this)"
                     ontouchend="ControlPanel._mup('${esc(w.tag)}',this)"
-                    ontouchcancel="ControlPanel._mup('${esc(w.tag)}',this)">▶ ПУСК</button>${indicatorHtml()}`;
+                    ontouchcancel="ControlPanel._mup('${esc(w.tag)}',this)">▶ ПУСК</button>`;
 
             case 'maintained_button':
                 return `${header}<button class="ctrl-btn ctrl-maintained ${isOn ? 'active' : ''}"
                     data-tag="${esc(w.tag)}"
                     onclick="ControlPanel._toggle('${esc(w.tag)}',this)"
-                    >${isOn ? '● ВКЛ' : '○ ВЫКЛ'}</button>${indicatorHtml()}`;
+                    >${isOn ? '● ВКЛ' : '○ ВЫКЛ'}</button>`;
 
             case 'indicator':
-                return `${header}<div class="ctrl-indicator ${isOn ? 'on' : 'off'}" data-tag="${esc(w.tag)}">
-                    <div class="ctrl-indicator-bulb"></div>
-                    <div class="ctrl-indicator-val">${isOn ? 'ВКЛ' : 'ВЫКЛ'}</div>
-                </div>`;
+                return header;  // цвет карточки = состояние, больше ничего не нужно
 
             case 'numeric_display':
                 return `${header}<div class="ctrl-num-display" data-tag="${esc(w.tag)}">${esc(val)}</div>`;
@@ -246,30 +240,16 @@ window.ControlPanel = (() => {
                         btn.textContent = isOn ? '● ВКЛ' : '○ ВЫКЛ';
                     }
                 }
-            } else if (w.type === 'indicator') {
-                const ind = card.querySelector('.ctrl-indicator');
-                if (ind) {
-                    ind.classList.toggle('on', isOn);
-                    ind.classList.toggle('off', !isOn);
-                    const v = ind.querySelector('.ctrl-indicator-val');
-                    if (v) v.textContent = isOn ? 'ВКЛ' : 'ВЫКЛ';
-                }
             } else if (w.type === 'numeric_display' || w.type === 'numeric_input') {
                 const disp = card.querySelector('.ctrl-num-display');
                 if (disp) disp.textContent = val;
             }
 
-            // secondary indicator for button cards
-            if (w.indicatorTag && BUTTON_TYPES.has(w.type)) {
-                const iv = getTagValue(w.indicatorTag) ?? '—';
-                const iOn = iv === '1' || iv === true;
-                const ind = card.querySelector('.ctrl-ind-secondary');
-                if (ind) {
-                    ind.classList.toggle('on', iOn);
-                    ind.classList.toggle('off', !iOn);
-                    const v = ind.querySelector('.ctrl-indicator-val');
-                    if (v) v.textContent = iOn ? 'ВКЛ' : 'ВЫКЛ';
-                }
+            // цвет карточки как индикатор (indicator и button+indicatorTag)
+            if (w.type === 'indicator' || (w.indicatorTag && BUTTON_TYPES.has(w.type))) {
+                const indTag = w.type === 'indicator' ? w.tag : w.indicatorTag;
+                const iv = getTagValue(indTag);
+                card.classList.toggle('ctrl-ind-on', iv === '1' || iv === true);
             }
         }
     }
