@@ -991,7 +991,7 @@ function startAutoRefresh() {
     updateInterval = setInterval(() => {
         loadTags();
         loadIO();
-    }, 1000);
+    }, 300);
 }
 
 function stopAutoRefresh() {

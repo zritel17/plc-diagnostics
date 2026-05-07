@@ -209,7 +209,7 @@ window.ControlPanel = (() => {
         const next = (cur === '1' || cur === true) ? '0' : '1';
         write(tag, next);
         // pending только чтобы следующий быстрый клик читал правильное состояние
-        ctrlPending.set(tag, { value: next, expires: Date.now() + 1500 });
+        ctrlPending.set(tag, { value: next, expires: Date.now() + 600 });
         // мгновенно обновляем ТОЛЬКО эту кнопку — не ждём опроса ПЛК
         if (btn) {
             btn.classList.toggle('active', next === '1');
@@ -357,7 +357,7 @@ window.ControlPanel = (() => {
     function onShow() {
         populateTagSelect();
         render();
-        if (!refreshTimer) refreshTimer = setInterval(updateValues, 1000);
+        if (!refreshTimer) refreshTimer = setInterval(updateValues, 300);
     }
 
     function init() {
