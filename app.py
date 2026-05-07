@@ -70,6 +70,7 @@ async def lifespan(app: FastAPI):
             print("[STARTUP] autostart=OFF, коллектор не запущен")
     except Exception as e:
         print(f"[STARTUP] autostart error: {e}")
+    asyncio.create_task(_plc_bg_reader())
     yield
     # shutdown
     print("[SHUTDOWN] остановка…")
@@ -133,7 +134,9 @@ all_tags_raw = []
 tag_structure = {}
 io_modules = []
 last_update = None
-_plc_lock = asyncio.Lock()  # сериализует доступ к PLC из нескольких coroutine
+_plc_lock = asyncio.Lock()   # один поток в PLC одновременно
+_tags_cache = None            # последний успешный ответ /api/tags
+_io_cache = None              # последний успешный ответ /api/io
 
 TIMER_FIELDS = [
     {'name': 'PRE', 'type': 'DINT', 'desc': 'Предустановка'},
@@ -342,7 +345,9 @@ async def auth_check():
 
 @app.post("/api/connect")
 async def connect(request: PLCConnectRequest):
-    global current_plc, current_ip, current_slot, all_tags_raw, tag_structure, io_modules
+    global current_plc, current_ip, current_slot, all_tags_raw, tag_structure, io_modules, _tags_cache, _io_cache
+    _tags_cache = None
+    _io_cache = None
     
     ip = request.ip.strip()
     slot = request.slot
@@ -606,154 +611,132 @@ def scan_io_modules(plc, tag_structure: dict):
     result.sort(key=lambda m: (m['slot'], m['name']))
     return result
 
-def _sync_read_tags():
-    tag_values = {}
-    for tag_info in all_tags_raw:
-        try:
-            response = current_plc.Read(tag_info['name'])
-            if hasattr(response, 'Value') and response.Value is not None:
-                tag_values[tag_info['name']] = response.Value
+# ── background PLC reader ──────────────────────────────────────────────────
+
+def _sync_batch_read_tags():
+    """Читает все теги одним batch-вызовом pylogix."""
+    if not all_tags_raw:
+        return {}
+    names = [t['name'] for t in all_tags_raw]
+    try:
+        resp = current_plc.Read(names) if len(names) > 1 else [current_plc.Read(names[0])]
+        if not isinstance(resp, list):
+            resp = [resp]
+        return {names[i]: (resp[i].Value if i < len(resp) and hasattr(resp[i], 'Value') else None)
+                for i in range(len(names))}
+    except Exception as e:
+        print(f"[BG] batch read tags: {e}")
+        return {}
+
+def _sync_batch_read_io():
+    """Читает все IO-каналы одним batch-вызовом pylogix."""
+    tasks = []
+    for module in io_modules:
+        for ch in module.get('inputs', []) + module.get('outputs', []):
+            tasks.append((ch, False))
+        for ch in module.get('analog_inputs', []) + module.get('analog_outputs', []):
+            tasks.append((ch, True))
+    if not tasks:
+        return
+    tags = [t[0]['tag'] for t in tasks]
+    try:
+        resp = current_plc.Read(tags) if len(tags) > 1 else [current_plc.Read(tags[0])]
+        if not isinstance(resp, list):
+            resp = [resp]
+        for i, (ch, is_analog) in enumerate(tasks):
+            if i < len(resp) and hasattr(resp[i], 'Value') and resp[i].Value is not None:
+                ch['value'] = float(resp[i].Value) if is_analog else (1 if resp[i].Value else 0)
+    except Exception as e:
+        print(f"[BG] batch read io: {e}")
+
+def _build_tags_result(tag_values):
+    """Строит структурированный результат из сырых значений (без обращения к PLC)."""
+    result = {}
+    for category, tags in tag_structure.items():
+        result[category] = []
+        for tag in tags:
+            tag_name = tag['name']
+            if tag.get('is_array'):
+                elements = []
+                for elem in tag['elements']:
+                    elem_value = tag_values.get(elem['name'])
+                    elem_data = {
+                        'name': elem['name'], 'index': elem['index'],
+                        'display_name': f"[{elem['index']}]",
+                        'type': elem['type'], 'value': format_value(elem_value, elem['type'])
+                    }
+                    if is_integer_type(elem['type']):
+                        bits = INT_BITS[elem['type']]
+                        elem_data['hex'] = format_hex(elem_value, bits)
+                        elem_data['bits'] = get_bits(elem_value, bits)
+                        elem_data['num_bits'] = bits
+                    elements.append(elem_data)
+                result[category].append({
+                    'name': tag_name, 'type': tag['type'], 'is_array': True,
+                    'array_size': tag['array_size'],
+                    'value': f"[{tag['array_size']} элементов]", 'elements': elements
+                })
             else:
-                tag_values[tag_info['name']] = None
-        except:
-            tag_values[tag_info['name']] = None
-    return tag_values
+                main_value = tag_values.get(tag_name)
+                tag_result = {
+                    'name': tag_name, 'type': tag['type'],
+                    'value': format_value(main_value, tag['type'])
+                }
+                if is_integer_type(tag['type']):
+                    bits = INT_BITS[tag['type']]
+                    tag_result['hex'] = format_hex(main_value, bits)
+                    tag_result['bits'] = get_bits(main_value, bits)
+                    tag_result['num_bits'] = bits
+                if tag.get('fields'):
+                    fields = []
+                    for f in tag['fields']:
+                        field_name = f['name'] if f['name'].startswith(tag_name + '.') else f"{tag_name}.{f['name']}"
+                        fv = tag_values.get(field_name)
+                        fields.append({
+                            'name': field_name,
+                            'display_name': f.get('display_name', f['name']),
+                            'desc': f.get('desc', ''),
+                            'type': f['type'], 'value': format_value(fv, f['type'])
+                        })
+                    tag_result['fields'] = fields
+                result[category].append(tag_result)
+    return result
+
+async def _plc_bg_reader():
+    """Фоновый task: batch-читает теги и IO каждые 500 мс, кладёт в кэш."""
+    global _tags_cache, _io_cache, last_update
+    while not (shutdown_event and shutdown_event.is_set()):
+        if current_plc and all_tags_raw:
+            try:
+                async with _plc_lock:
+                    raw = await asyncio.to_thread(_sync_batch_read_tags)
+                if raw:
+                    ts = datetime.now().isoformat()
+                    _tags_cache = {"tags": _build_tags_result(raw), "last_update": ts}
+                    last_update = ts
+            except Exception as e:
+                print(f"[BG] tags: {e}")
+            try:
+                async with _plc_lock:
+                    await asyncio.to_thread(_sync_batch_read_io)
+                _io_cache = io_modules
+            except Exception as e:
+                print(f"[BG] io: {e}")
+        await asyncio.sleep(0.5)
 
 @app.get("/api/tags")
 async def get_tags():
-    global current_plc, all_tags_raw, tag_structure, last_update
-
     if not current_plc:
         raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
-
-    try:
-        async with _plc_lock:
-            tag_values = await asyncio.to_thread(_sync_read_tags)
-        
-        # Формируем результат
-        result = {}
-        for category, tags in tag_structure.items():
-            result[category] = []
-            for tag in tags:
-                tag_name = tag['name']
-                
-                if tag.get('is_array'):
-                    # МАССИВ
-                    elements = []
-                    for elem in tag['elements']:
-                        elem_value = tag_values.get(elem['name'])
-                        elem_data = {
-                            'name': elem['name'],
-                            'index': elem['index'],
-                            'display_name': f"[{elem['index']}]",
-                            'type': elem['type'],
-                            'value': format_value(elem_value, elem['type'])
-                        }
-                        # Для целочисленных - добавляем hex и биты
-                        if is_integer_type(elem['type']):
-                            bits = INT_BITS[elem['type']]
-                            elem_data['hex'] = format_hex(elem_value, bits)
-                            elem_data['bits'] = get_bits(elem_value, bits)
-                            elem_data['num_bits'] = bits
-                        elements.append(elem_data)
-                    
-                    result[category].append({
-                        'name': tag_name,
-                        'type': tag['type'],
-                        'is_array': True,
-                        'array_size': tag['array_size'],
-                        'value': f"[{tag['array_size']} элементов]",
-                        'elements': elements
-                    })
-                else:
-                    # Обычный тег
-                    main_value = tag_values.get(tag_name)
-                    tag_result = {
-                        'name': tag_name,
-                        'type': tag['type'],
-                        'value': format_value(main_value, tag['type'])
-                    }
-                    
-                    if is_integer_type(tag['type']):
-                        bits = INT_BITS[tag['type']]
-                        tag_result['hex'] = format_hex(main_value, bits)
-                        tag_result['bits'] = get_bits(main_value, bits)
-                        tag_result['num_bits'] = bits
-                    
-                    if tag.get('fields'):
-                        fields = []
-                        for f in tag['fields']:
-                            # UDT fields store full path; TIMER/COUNTER store short names
-                            if f['name'].startswith(tag_name + '.'):
-                                field_name = f['name']
-                            else:
-                                field_name = f"{tag_name}.{f['name']}"
-                            fv = tag_values.get(field_name)
-                            fields.append({
-                                'name': field_name,
-                                'display_name': f.get('display_name', f['name']),
-                                'desc': f.get('desc', ''),
-                                'type': f['type'],
-                                'value': format_value(fv, f['type'])
-                            })
-                        tag_result['fields'] = fields
-                    
-                    result[category].append(tag_result)
-        
-        last_update = datetime.now().isoformat()
-        return {"tags": result, "last_update": last_update}
-        
-    except Exception as e:
-        print(f"[ERROR] tags read: {e}")
-        raise HTTPException(status_code=400, detail=f"Ошибка чтения: {str(e)}")
-
-def _sync_read_io():
-    for module in io_modules:
-        for ch in module.get('inputs', []):
-            try:
-                r = current_plc.Read(ch['tag'])
-                if r.Status == "Success" and r.Value is not None:
-                    ch['value'] = 1 if r.Value else 0
-            except Exception:
-                pass
-        for ch in module.get('outputs', []):
-            try:
-                r = current_plc.Read(ch['tag'])
-                if r.Status == "Success" and r.Value is not None:
-                    ch['value'] = 1 if r.Value else 0
-            except Exception:
-                pass
-        for ch in module.get('analog_inputs', []):
-            try:
-                r = current_plc.Read(ch['tag'])
-                if r.Status == "Success" and r.Value is not None:
-                    ch['value'] = float(r.Value) if isinstance(r.Value, (int, float)) else 0
-            except Exception:
-                pass
-        for ch in module.get('analog_outputs', []):
-            try:
-                r = current_plc.Read(ch['tag'])
-                if r.Status == "Success" and r.Value is not None:
-                    ch['value'] = float(r.Value) if isinstance(r.Value, (int, float)) else 0
-            except Exception:
-                pass
-    return io_modules
+    if _tags_cache is None:
+        raise HTTPException(status_code=503, detail="Данные загружаются…")
+    return _tags_cache
 
 @app.get("/api/io")
 async def get_io():
-    global current_plc, io_modules
-
     if not current_plc:
         raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
-
-    try:
-        async with _plc_lock:
-            await asyncio.to_thread(_sync_read_io)
-        return io_modules
-
-    except Exception as e:
-        print(f"[ERROR] io read: {e}")
-        raise HTTPException(status_code=400, detail=f"Ошибка чтения I/O: {str(e)}")
+    return _io_cache if _io_cache is not None else []
 
 @app.post("/api/write")
 async def write_tag(request: WriteTagRequest):
