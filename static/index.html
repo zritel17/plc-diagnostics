@@ -20,14 +20,15 @@
         <div class="header-right">
             <span class="last-update" id="lastUpdate"></span>
             <span class="status-badge" id="statusBadge">🔴 Офлайн</span>
+            <button class="btn btn-secondary btn-small" id="logoutBtn" title="Выйти">⎋ Выход</button>
         </div>
     </header>
 
     <nav class="tabs">
-        <div class="tab active" data-tab="tags">📋 Теги</div>
-        <div class="tab" data-tab="io">⚙️ I/O</div>
-        <div class="tab" data-tab="collector">📥 Сбор данных</div>
-        <div class="tab" data-tab="dashboards">📈 Дашборды</div>
+        <div class="tab active" data-tab="dashboards">📈 Дашборды</div>
+        <div class="tab" data-tab="control">🎛 Контрольная панель</div>
+        <div class="tab" data-tab="collector">📥 Выбор тегов</div>
+        <div class="tab" data-tab="tags">🔬 Диагностика</div>
     </nav>
 
     <div class="main">
@@ -77,7 +78,7 @@
         </aside>
 
         <main class="right-panel" id="rightPanel">
-            <div id="tagsView" style="display: flex; flex-direction: column; gap: 12px;">
+            <div id="tagsView" style="display: none; flex-direction: column; gap: 12px;">
                 <div class="detail-panel" id="detailPanel"></div>
                 <div id="placeholder" class="empty-state" style="margin-top: 40px;">
                     <div class="empty-state-icon">👈</div>
@@ -85,16 +86,66 @@
                 </div>
             </div>
 
-            <div id="ioView" class="io-container" style="display: none;">
-                <div id="ioContainer">
+            <!-- ioView — скрыт, нужен app.js (I/O вкладка убрана из навигации) -->
+            <div id="ioView" class="io-container" style="display: none;"></div>
+
+            <!-- Диагностика — живая таблица тегов -->
+            <div id="diagnosticsView" class="full-view" style="display:flex; flex-direction:column; gap:12px; padding:12px;">
+                <div class="diag-toolbar">
+                    <input type="text" id="diagSearch" placeholder="🔍 Поиск..." />
+                    <select id="diagTypeFilter">
+                        <option value="">Все типы</option>
+                        <option value="BOOL">BOOL</option>
+                        <option value="DINT">DINT</option>
+                        <option value="REAL">REAL</option>
+                        <option value="INT">INT</option>
+                        <option value="SINT">SINT</option>
+                        <option value="LINT">LINT</option>
+                        <option value="STRING">STRING</option>
+                    </select>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="diagFavOnly" /> ★ Только избранные
+                    </label>
+                </div>
+                <div id="diagTableWrap">
                     <div class="empty-state">
-                        <div class="empty-state-icon">⚙️</div>
-                        <div>Подключитесь к ПЛК</div>
+                        <div class="empty-state-icon">🔬</div>
+                        <div>Подключитесь к ПЛК на вкладке «Диагностика»</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Сбор данных -->
+            <!-- Контрольная панель -->
+            <div id="controlView" class="full-view" style="display:none;">
+                <div class="card">
+                    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>🎛 Контрольная панель</span>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn btn-secondary btn-small" id="ctrlModeBtn">✎ Режим правки</button>
+                        </div>
+                    </div>
+                    <div class="card-body" id="ctrlEditForm" style="display:none; border-bottom:1px solid #334155; margin-bottom:0;">
+                        <div class="form-row">
+                            <label>Тип</label>
+                            <select id="ctrlWType">
+                                <option value="momentary_button">Кнопка (удерж.)</option>
+                                <option value="maintained_button">Кнопка (фикс.)</option>
+                                <option value="indicator">Индикатор</option>
+                                <option value="numeric_display">Числовой индикатор</option>
+                                <option value="numeric_input">Числовой ввод</option>
+                            </select>
+                            <label>Метка</label>
+                            <input type="text" id="ctrlWLabel" placeholder="Старт" style="width:120px;" />
+                            <label>Тег</label>
+                            <select id="ctrlWTag" style="min-width:200px;"></select>
+                            <button class="btn btn-small" id="ctrlAddWidgetBtn">＋ Добавить</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="ctrlGrid" class="ctrl-grid"></div>
+            </div>
+
+            <!-- Сбор данных / Выбор тегов -->
             <div id="collectorView" class="full-view" style="display:none;">
                 <div class="card">
                     <div class="card-title">Статус коллектора</div>
@@ -164,7 +215,7 @@
                         <div class="card-actions" style="margin-bottom: 12px;">
                             <button class="btn" id="cfgAddFromPlcBtn">+ Добавить из ПЛК</button>
                             <button class="btn btn-secondary" id="cfgRefreshBtn">🔄 Обновить</button>
-                            <span class="muted">Подключитесь к ПЛК на вкладке «Теги», затем добавляйте теги в сбор.</span>
+                            <span class="muted">Подключитесь к ПЛК на вкладке «Диагностика», затем добавляйте теги в сбор.</span>
                         </div>
                         <table class="data-table" id="cfgTable">
                             <thead>
@@ -245,6 +296,8 @@
     <script src="/static/collector.js"></script>
     <script src="/static/config.js"></script>
     <script src="/static/dashboard.js"></script>
+    <script src="/static/control.js"></script>
+    <script src="/static/diagnostics.js"></script>
     <script src="/static/init_extras.js"></script>
 </body>
 </html>

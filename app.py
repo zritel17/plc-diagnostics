@@ -1,18 +1,23 @@
 """
 PLC Diagnostics + Edge Gateway.
 - Существующие роуты (диагностика, I/O) — без изменений
-- Новые роуты: конфиг сбора, коллектор, данные из InfluxDB, дашборды, WS
+- Новые роуты: конфиг сбора, коллектор, данные из InfluxDB, дашборды, WS, auth
 """
 import asyncio
 import json
 import os
+import secrets
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
+from dotenv import load_dotenv
+load_dotenv()
+
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query, Request
+from fastapi.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from pylogix import PLC
 from sqlalchemy import select, delete
@@ -79,7 +84,46 @@ async def lifespan(app: FastAPI):
     print("[SHUTDOWN] готово")
 
 
+# ============================================================================
+# AUTH
+# ============================================================================
+
+WEB_PASSWORD = os.environ.get("WEB_PASSWORD", "plcadmin")
+_tokens: dict = {}  # token -> expiry datetime
+
+def _issue_token() -> str:
+    token = secrets.token_urlsafe(32)
+    _tokens[token] = datetime.utcnow() + timedelta(hours=24)
+    return token
+
+def _valid_token(token: str) -> bool:
+    exp = _tokens.get(token)
+    if not exp:
+        return False
+    if datetime.utcnow() > exp:
+        _tokens.pop(token, None)
+        return False
+    return True
+
+_NO_AUTH = {"/", "/login", "/api/auth/login"}
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if path in _NO_AUTH or path.startswith("/static/"):
+            return await call_next(request)
+        auth = request.headers.get("Authorization", "")
+        token = auth.removeprefix("Bearer ").strip()
+        if not _valid_token(token):
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+        return await call_next(request)
+
+
+class LoginRequest(BaseModel):
+    password: str
+
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(AuthMiddleware)
 
 current_plc = None
 current_ip = None
@@ -216,6 +260,20 @@ def get_bits(val, num_bits):
 @app.get("/")
 async def root():
     return FileResponse(f"{STATIC_DIR}/index.html")
+
+@app.get("/login")
+async def login_page():
+    return FileResponse(f"{STATIC_DIR}/login.html")
+
+@app.post("/api/auth/login")
+async def auth_login(body: LoginRequest):
+    if body.password != WEB_PASSWORD:
+        raise HTTPException(status_code=401, detail="Неверный пароль")
+    return {"token": _issue_token()}
+
+@app.get("/api/auth/check")
+async def auth_check():
+    return {"ok": True}
 
 @app.post("/api/connect")
 async def connect(request: PLCConnectRequest):
@@ -632,6 +690,10 @@ async def write_tag(request: WriteTagRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Ошибка: {str(e)}")
 
+@app.post("/api/tags/write")
+async def write_tag_v2(request: WriteTagRequest):
+    return await write_tag(request)
+
 @app.get("/api/status")
 async def get_status():
     global current_plc, current_ip, current_slot, all_tags_raw, last_update
@@ -862,7 +924,10 @@ async def dash_delete(dash_id: int):
 # ============================================================================
 
 @app.websocket("/ws/live")
-async def ws_live(ws: WebSocket):
+async def ws_live(ws: WebSocket, token: str = ""):
+    if not _valid_token(token):
+        await ws.close(code=4001)
+        return
     await ws.accept()
     q = collector.subscribe()
     try:

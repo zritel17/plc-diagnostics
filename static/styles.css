@@ -680,6 +680,243 @@ body {
     .header-stats { display: none; }
 }
 
+/* === LOGOUT BTN === */
+#logoutBtn { font-size: 11px; }
+
+/* === DIAG TOOLBAR === */
+.diag-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 8px 0 4px;
+    flex-shrink: 0;
+}
+.diag-toolbar input[type="text"] {
+    padding: 6px 10px;
+    background: #1e293b;
+    border: 1px solid #475569;
+    color: #e2e8f0;
+    border-radius: 4px;
+    font-size: 12px;
+    min-width: 180px;
+}
+.diag-toolbar select {
+    padding: 6px 10px;
+    background: #1e293b;
+    border: 1px solid #475569;
+    color: #e2e8f0;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+/* === DIAGNOSTICS TABLE === */
+.diag-table { font-size: 12px; }
+.diag-table .diag-row { cursor: default; }
+.diag-table .diag-row.expandable:hover td { background: rgba(102,126,234,0.08); }
+.diag-fav { cursor: pointer; text-align: center; font-size: 14px; color: #94a3b8; user-select: none; }
+.diag-fav:hover { color: #fbbf24; }
+
+.diag-val { font-family: 'Monaco', monospace; font-size: 12px; padding: 2px 6px; border-radius: 3px; }
+.val-bool-on  { background: rgba(74,222,128,0.2); color: #4ade80; font-weight: 700; }
+.val-bool-off { background: rgba(100,116,139,0.15); color: #94a3b8; }
+.val-num   { background: rgba(74,222,128,0.1); color: #4ade80; }
+.val-real  { background: rgba(168,85,247,0.15); color: #c084fc; }
+.val-str   { background: rgba(245,158,11,0.15); color: #fbbf24; }
+
+.type-badge {
+    font-size: 10px;
+    background: #334155;
+    color: #93c5fd;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.diag-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.diag-expand-btn {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(102,126,234,0.15);
+    color: #93c5fd;
+    cursor: pointer;
+    border: 1px solid rgba(102,126,234,0.3);
+    user-select: none;
+    white-space: nowrap;
+}
+.diag-expand-btn:hover { background: rgba(102,126,234,0.3); }
+
+.diag-edit-btn {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(100,116,139,0.2);
+    color: #94a3b8;
+    cursor: pointer;
+    border: 1px solid #334155;
+    user-select: none;
+}
+.diag-edit-btn:hover { background: #334155; color: #e2e8f0; }
+
+.diag-expanded-row td { background: #0f172a !important; padding: 0; }
+.diag-expand-body {
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.diag-elem-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid #1e293b;
+}
+.diag-bits-wrap {
+    padding: 10px 14px;
+    background: #0a0f1e;
+    border-top: 1px solid #334155;
+}
+
+/* === CONTROL PANEL === */
+.ctrl-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 4px;
+}
+
+.ctrl-widget {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 16px;
+    min-width: 160px;
+    max-width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.ctrl-w-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #e2e8f0;
+    text-align: center;
+}
+.ctrl-w-tag { font-size: 10px; text-align: center; word-break: break-all; }
+
+.ctrl-btn {
+    width: 100%;
+    padding: 14px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 2px solid;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.1s;
+    user-select: none;
+}
+
+.ctrl-momentary {
+    background: linear-gradient(135deg, rgba(245,158,11,0.2), rgba(217,119,6,0.2));
+    color: #fbbf24;
+    border-color: rgba(245,158,11,0.5);
+}
+.ctrl-momentary:hover { background: linear-gradient(135deg, rgba(245,158,11,0.35), rgba(217,119,6,0.35)); }
+.ctrl-momentary.holding {
+    background: linear-gradient(135deg, #4ade80, #22c55e);
+    border-color: #16a34a;
+    color: #fff;
+    box-shadow: 0 0 20px rgba(74,222,128,0.5);
+    transform: scale(0.97);
+}
+
+.ctrl-maintained {
+    background: rgba(100,116,139,0.2);
+    color: #94a3b8;
+    border-color: #475569;
+}
+.ctrl-maintained.active {
+    background: linear-gradient(135deg, rgba(74,222,128,0.25), rgba(34,197,94,0.25));
+    color: #4ade80;
+    border-color: #22c55e;
+    box-shadow: 0 0 12px rgba(74,222,128,0.3);
+}
+
+.ctrl-indicator {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 3px solid;
+    transition: all 0.2s;
+}
+.ctrl-indicator.on { background: rgba(74,222,128,0.2); border-color: #4ade80; box-shadow: 0 0 16px rgba(74,222,128,0.4); }
+.ctrl-indicator.off { background: rgba(100,116,139,0.1); border-color: #475569; }
+.ctrl-indicator-bulb { width: 24px; height: 24px; border-radius: 50%; background: currentColor; }
+.ctrl-indicator.on .ctrl-indicator-bulb { color: #4ade80; box-shadow: 0 0 12px rgba(74,222,128,0.8); }
+.ctrl-indicator.off .ctrl-indicator-bulb { color: #475569; }
+.ctrl-indicator-val { font-size: 11px; font-weight: 700; }
+.ctrl-indicator.on .ctrl-indicator-val { color: #4ade80; }
+.ctrl-indicator.off .ctrl-indicator-val { color: #64748b; }
+
+.ctrl-num-display {
+    font-family: 'Monaco', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: #4ade80;
+    text-align: center;
+    padding: 8px 12px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    min-width: 100px;
+}
+
+.ctrl-num-input-wrap { width: 100%; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.ctrl-write-form { display: flex; gap: 6px; width: 100%; }
+.ctrl-write-form input {
+    flex: 1;
+    padding: 6px 10px;
+    background: #0f172a;
+    border: 1px solid #475569;
+    color: #e2e8f0;
+    border-radius: 4px;
+    font-size: 12px;
+    min-width: 0;
+}
+
+.ctrl-del-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(239,68,68,0.2);
+    border: 1px solid rgba(239,68,68,0.4);
+    color: #f87171;
+    border-radius: 4px;
+    width: 20px;
+    height: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+.ctrl-del-btn:hover { background: rgba(239,68,68,0.4); }
+
 /* === BOOL ACTION BUTTONS === */
 .bool-controls {
     display: flex;
