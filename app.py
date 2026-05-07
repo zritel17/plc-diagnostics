@@ -133,6 +133,7 @@ all_tags_raw = []
 tag_structure = {}
 io_modules = []
 last_update = None
+_plc_lock = asyncio.Lock()  # сериализует доступ к PLC из нескольких coroutine
 
 TIMER_FIELDS = [
     {'name': 'PRE', 'type': 'DINT', 'desc': 'Предустановка'},
@@ -605,25 +606,29 @@ def scan_io_modules(plc, tag_structure: dict):
     result.sort(key=lambda m: (m['slot'], m['name']))
     return result
 
+def _sync_read_tags():
+    tag_values = {}
+    for tag_info in all_tags_raw:
+        try:
+            response = current_plc.Read(tag_info['name'])
+            if hasattr(response, 'Value') and response.Value is not None:
+                tag_values[tag_info['name']] = response.Value
+            else:
+                tag_values[tag_info['name']] = None
+        except:
+            tag_values[tag_info['name']] = None
+    return tag_values
+
 @app.get("/api/tags")
 async def get_tags():
     global current_plc, all_tags_raw, tag_structure, last_update
-    
+
     if not current_plc:
         raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
-    
+
     try:
-        # Читаем все теги
-        tag_values = {}
-        for tag_info in all_tags_raw:
-            try:
-                response = current_plc.Read(tag_info['name'])
-                if hasattr(response, 'Value') and response.Value is not None:
-                    tag_values[tag_info['name']] = response.Value
-                else:
-                    tag_values[tag_info['name']] = None
-            except:
-                tag_values[tag_info['name']] = None
+        async with _plc_lock:
+            tag_values = await asyncio.to_thread(_sync_read_tags)
         
         # Формируем результат
         result = {}
@@ -702,6 +707,38 @@ async def get_tags():
         print(f"[ERROR] tags read: {e}")
         raise HTTPException(status_code=400, detail=f"Ошибка чтения: {str(e)}")
 
+def _sync_read_io():
+    for module in io_modules:
+        for ch in module.get('inputs', []):
+            try:
+                r = current_plc.Read(ch['tag'])
+                if r.Status == "Success" and r.Value is not None:
+                    ch['value'] = 1 if r.Value else 0
+            except Exception:
+                pass
+        for ch in module.get('outputs', []):
+            try:
+                r = current_plc.Read(ch['tag'])
+                if r.Status == "Success" and r.Value is not None:
+                    ch['value'] = 1 if r.Value else 0
+            except Exception:
+                pass
+        for ch in module.get('analog_inputs', []):
+            try:
+                r = current_plc.Read(ch['tag'])
+                if r.Status == "Success" and r.Value is not None:
+                    ch['value'] = float(r.Value) if isinstance(r.Value, (int, float)) else 0
+            except Exception:
+                pass
+        for ch in module.get('analog_outputs', []):
+            try:
+                r = current_plc.Read(ch['tag'])
+                if r.Status == "Success" and r.Value is not None:
+                    ch['value'] = float(r.Value) if isinstance(r.Value, (int, float)) else 0
+            except Exception:
+                pass
+    return io_modules
+
 @app.get("/api/io")
 async def get_io():
     global current_plc, io_modules
@@ -710,39 +747,8 @@ async def get_io():
         raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
 
     try:
-        for module in io_modules:
-            for ch in module.get('inputs', []):
-                try:
-                    r = current_plc.Read(ch['tag'])
-                    if r.Status == "Success" and r.Value is not None:
-                        ch['value'] = 1 if r.Value else 0
-                except Exception:
-                    pass  # keep previous value
-
-            for ch in module.get('outputs', []):
-                try:
-                    r = current_plc.Read(ch['tag'])
-                    if r.Status == "Success" and r.Value is not None:
-                        ch['value'] = 1 if r.Value else 0
-                except Exception:
-                    pass
-
-            for ch in module.get('analog_inputs', []):
-                try:
-                    r = current_plc.Read(ch['tag'])
-                    if r.Status == "Success" and r.Value is not None:
-                        ch['value'] = float(r.Value) if isinstance(r.Value, (int, float)) else 0
-                except Exception:
-                    pass
-
-            for ch in module.get('analog_outputs', []):
-                try:
-                    r = current_plc.Read(ch['tag'])
-                    if r.Status == "Success" and r.Value is not None:
-                        ch['value'] = float(r.Value) if isinstance(r.Value, (int, float)) else 0
-                except Exception:
-                    pass
-
+        async with _plc_lock:
+            await asyncio.to_thread(_sync_read_io)
         return io_modules
 
     except Exception as e:
@@ -774,8 +780,9 @@ async def write_tag(request: WriteTagRequest):
             else:
                 value = tag_value
         
-        response = current_plc.Write(tag_name, value)
-        
+        async with _plc_lock:
+            response = await asyncio.to_thread(current_plc.Write, tag_name, value)
+
         if hasattr(response, 'Status') and response.Status == "Success":
             return {"status": "success", "tag": tag_name, "value": str(value)}
         else:
