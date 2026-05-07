@@ -71,7 +71,7 @@ window.ControlPanel = (() => {
         }
         for (const w of widgets) {
             const card = document.createElement('div');
-            card.className = 'ctrl-widget' + (w.type === 'section' ? ' ctrl-section-card' : '');
+            card.className = w.type === 'section' ? 'ctrl-section-card' : 'ctrl-widget';
             card.dataset.wid = w.id;
             card.innerHTML = renderWidget(w);
             bindWidgetEvents(card, w);
