@@ -203,12 +203,14 @@ window.ControlPanel = (() => {
         write(tag, '0');
     }
     function _toggle(tag, btn) {
-        // читаем из pending если есть, иначе из ПЛК
-        const cur = ctrlPending.has(tag) ? ctrlPending.get(tag).value : getTagValue(tag);
+        // читаем из pending (быстрые клики) или из ПЛК
+        const p = ctrlPending.get(tag);
+        const cur = (p && Date.now() < p.expires) ? p.value : (getTagValue(tag) ?? '0');
         const next = (cur === '1' || cur === true) ? '0' : '1';
         write(tag, next);
-        // блокируем updateValues от перезаписи на 3 секунды, сразу обновляем DOM
-        ctrlPending.set(tag, { value: next, expires: Date.now() + 3000 });
+        // pending только чтобы следующий быстрый клик читал правильное состояние
+        ctrlPending.set(tag, { value: next, expires: Date.now() + 1500 });
+        // мгновенно обновляем ТОЛЬКО эту кнопку — не ждём опроса ПЛК
         if (btn) {
             btn.classList.toggle('active', next === '1');
             btn.textContent = next === '1' ? '● ВКЛ' : '○ ВЫКЛ';
@@ -234,16 +236,15 @@ window.ControlPanel = (() => {
             const isOn = val === '1' || val === true;
 
             if (w.type === 'maintained_button') {
-                // пропускаем пока pending не истёк
                 const p = ctrlPending.get(w.tag);
-                if (p) {
-                    if (Date.now() < p.expires) continue;
-                    ctrlPending.delete(w.tag);
-                }
-                const btn = card.querySelector('.ctrl-maintained');
-                if (btn) {
-                    btn.classList.toggle('active', isOn);
-                    btn.textContent = isOn ? '● ВКЛ' : '○ ВЫКЛ';
+                const blocked = p && Date.now() < p.expires;
+                if (!blocked) {
+                    if (p) ctrlPending.delete(w.tag);
+                    const btn = card.querySelector('.ctrl-maintained');
+                    if (btn) {
+                        btn.classList.toggle('active', isOn);
+                        btn.textContent = isOn ? '● ВКЛ' : '○ ВЫКЛ';
+                    }
                 }
             } else if (w.type === 'indicator') {
                 const ind = card.querySelector('.ctrl-indicator');
