@@ -259,7 +259,9 @@ async function loadIO() {
             const newIoData = await r.json();
             preservePendingIO(newIoData);
             ioData = newIoData;
+            window.ioData = ioData;
             updateStats();
+            if (window.Diagnostics) Diagnostics.onIoUpdated();
             if (currentTab === 'io') {
                 if (needsFullRender) {
                     renderIO();
