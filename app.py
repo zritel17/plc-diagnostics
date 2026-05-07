@@ -415,9 +415,10 @@ async def disconnect():
     return {"status": "disconnected"}
 
 def parse_channel_count(dtype: str) -> int:
-    """Extract channel count from module type string. AB:5000_DI16:I:0 → 16"""
+    """Extract channel count from AB module type. AB:5000_DI16:I:0 → 16"""
     import re
-    m = re.search(r'[A-Z_](\d{1,3})(?:[^0-9]|$)', dtype.upper())
+    # Match only standard AB channel-count suffixes: DI16, DO16, AI8, AO4, IB16, OB16, etc.
+    m = re.search(r'(?:DI|DO|AI|AO|IB|OB|IV|OV)(\d{1,3})(?:[^0-9]|$)', dtype.upper())
     if m:
         n = int(m.group(1))
         if 1 <= n <= 128:
