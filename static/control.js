@@ -210,12 +210,20 @@ window.ControlPanel = (() => {
     }
 
     // ── tag select populate ───────────────────────────────────────────────────
+    function getFavs() {
+        try { return new Set(JSON.parse(localStorage.getItem('plc_diag_favs') || '[]')); } catch { return new Set(); }
+    }
+
     function populateTagSelect() {
         const sel = document.getElementById('ctrlWTag');
         if (!sel) return;
-        const tags = availableTags();
+        const favOnly = document.getElementById('ctrlFavOnly')?.checked;
+        const favs = favOnly ? getFavs() : null;
+        const tags = availableTags().filter(t => !favs || favs.has(t.name));
         if (!tags.length) {
-            sel.innerHTML = '<option value="">— нет тегов (подключитесь к ПЛК) —</option>';
+            sel.innerHTML = favOnly
+                ? '<option value="">— нет избранных тегов —</option>'
+                : '<option value="">— нет тегов (подключитесь к ПЛК) —</option>';
             return;
         }
         sel.innerHTML = tags.map(t =>
@@ -244,6 +252,7 @@ window.ControlPanel = (() => {
         load();
         document.getElementById('ctrlModeBtn')?.addEventListener('click', toggleEditMode);
         document.getElementById('ctrlAddWidgetBtn')?.addEventListener('click', addWidget);
+        document.getElementById('ctrlFavOnly')?.addEventListener('change', populateTagSelect);
     }
 
     return { init, onShow, updateValues, _mdown, _mup, _toggle, _write: _writeForm };

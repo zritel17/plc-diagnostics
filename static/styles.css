@@ -741,6 +741,7 @@ body.no-left .right-panel { padding: 0; }
 }
 .form-row input:focus, .form-row select:focus { border-color: rgba(28,28,28,0.5); outline: none; }
 .checkbox-label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.ctrl-fav-label { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 12px; color: var(--fg-muted); font-weight: 600; white-space: nowrap; }
 .checkbox-label input { width: 16px; height: 16px; }
 
 /* =====================================================================
