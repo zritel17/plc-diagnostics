@@ -690,6 +690,12 @@ body {
   background: var(--card-sky); border: 1px solid rgba(160,188,232,0.30);
   border-radius: var(--radius-sm); min-width: 100px;
 }
+.ctrl-str-display {
+  font-size: 18px; font-weight: 500; color: var(--fg);
+  text-align: center; padding: 8px 12px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); min-width: 100px; word-break: break-all;
+}
 .ctrl-num-input-wrap { width: 100%; display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .ctrl-write-form { display: flex; gap: 6px; width: 100%; }
 .ctrl-write-form input {

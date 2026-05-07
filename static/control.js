@@ -167,6 +167,9 @@ window.ControlPanel = (() => {
             case 'numeric_display':
                 return `${header}<div class="ctrl-num-display" data-tag="${esc(w.tag)}">${esc(val)}</div>`;
 
+            case 'string_display':
+                return `${header}<div class="ctrl-str-display" data-tag="${esc(w.tag)}">${esc(val)}</div>`;
+
             case 'numeric_input': {
                 return `${header}<div class="ctrl-num-input-wrap">
                     <div class="ctrl-num-display" data-tag="${esc(w.tag)}">${esc(val)}</div>
@@ -242,6 +245,9 @@ window.ControlPanel = (() => {
                 }
             } else if (w.type === 'numeric_display' || w.type === 'numeric_input') {
                 const disp = card.querySelector('.ctrl-num-display');
+                if (disp) disp.textContent = val;
+            } else if (w.type === 'string_display') {
+                const disp = card.querySelector('.ctrl-str-display');
                 if (disp) disp.textContent = val;
             }
 
