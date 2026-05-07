@@ -694,8 +694,8 @@ body.no-left .right-panel { padding: 20px; }
 
 .full-view {
   display: flex; flex-direction: column;
-  gap: 14px; padding: 4px;
-  overflow-y: auto; height: 100%;
+  gap: 14px; padding: 16px;
+  overflow-y: auto; flex: 1; min-height: 0;
 }
 
 /* =====================================================================

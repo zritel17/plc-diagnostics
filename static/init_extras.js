@@ -1,5 +1,5 @@
 /**
- * init_extras.js — связывает все модули, управляет авторизацией и вкладками.
+ * init_extras.js — авторизация, управление вкладками, WebSocket.
  */
 (function() {
     'use strict';
@@ -8,7 +8,7 @@
     const token = localStorage.getItem('plc_token') || '';
     if (!token) { window.location.href = '/login'; return; }
 
-    // Оборачиваем глобальный fetch: добавляем Authorization, перехватываем 401
+    // Оборачиваем fetch: добавляем Authorization, перехватываем 401
     const _origFetch = window.fetch.bind(window);
     window.fetch = function(url, opts) {
         opts = opts || {};
@@ -24,6 +24,13 @@
         });
     };
 
+    // Проверяем токен на сервере сразу при загрузке.
+    // Если сервер перезапускался — токен протух, редиректим на логин.
+    fetch('/api/auth/check').catch(() => {
+        localStorage.removeItem('plc_token');
+        window.location.href = '/login';
+    });
+
     // Logout
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
         localStorage.removeItem('plc_token');
@@ -36,26 +43,20 @@
             const el = document.getElementById(id);
             if (el) el.style.display = (id === viewId) ? 'flex' : 'none';
         });
-        // tagsView управляется app.js через switchTab — здесь только скрываем
         const tv = document.getElementById('tagsView');
         if (tv) tv.style.display = 'none';
     }
 
     function bindTabs() {
-        // Дашборды
         const dashTab = document.querySelector('.tab[data-tab="dashboards"]');
         if (dashTab) {
             dashTab.addEventListener('click', () => {
                 document.body.classList.add('no-left');
                 showOnly('dashboardsView');
-                if (window.Dashboards) {
-                    Dashboards.loadAvailableTags();
-                    Dashboards.loadList();
-                }
+                if (window.Dashboards) { Dashboards.loadAvailableTags(); Dashboards.loadList(); }
             });
         }
 
-        // Контрольная панель
         const ctrlTab = document.querySelector('.tab[data-tab="control"]');
         if (ctrlTab) {
             ctrlTab.addEventListener('click', () => {
@@ -65,21 +66,16 @@
             });
         }
 
-        // Выбор тегов (collector)
         const collTab = document.querySelector('.tab[data-tab="collector"]');
         if (collTab) {
             collTab.addEventListener('click', () => {
                 document.body.classList.add('no-left');
                 showOnly('collectorView');
-                if (window.Collector) {
-                    Collector.fetchStatus();
-                    Collector.loadSettings();
-                }
+                if (window.Collector) { Collector.fetchStatus(); Collector.loadSettings(); }
                 if (window.TagCfg) TagCfg.loadConfigs();
             });
         }
 
-        // Диагностика (tags)
         const tagsTab = document.querySelector('.tab[data-tab="tags"]');
         if (tagsTab) {
             tagsTab.addEventListener('click', () => {
@@ -91,11 +87,11 @@
     }
 
     function initModules() {
-        try { if (window.Collector) Collector.init(); } catch (e) { console.error('Collector.init', e); }
-        try { if (window.TagCfg) TagCfg.init(); } catch (e) { console.error('TagCfg.init', e); }
-        try { if (window.Dashboards) Dashboards.init(); } catch (e) { console.error('Dashboards.init', e); }
+        try { if (window.Collector)    Collector.init();    } catch (e) { console.error('Collector.init', e); }
+        try { if (window.TagCfg)       TagCfg.init();       } catch (e) { console.error('TagCfg.init', e); }
+        try { if (window.Dashboards)   Dashboards.init();   } catch (e) { console.error('Dashboards.init', e); }
         try { if (window.ControlPanel) ControlPanel.init(); } catch (e) { console.error('ControlPanel.init', e); }
-        try { if (window.Diagnostics) Diagnostics.init(); } catch (e) { console.error('Diagnostics.init', e); }
+        try { if (window.Diagnostics)  Diagnostics.init();  } catch (e) { console.error('Diagnostics.init', e); }
     }
 
     // ── WEBSOCKET ─────────────────────────────────────────────────────────────
@@ -124,8 +120,14 @@
                     }
                 } catch (e) { /* ignore */ }
             };
-            ws.onclose = () => {
+            ws.onclose = ev => {
                 ws = null;
+                // Код 4001 — сервер отклонил токен, перенаправляем на логин
+                if (ev.code === 4001) {
+                    localStorage.removeItem('plc_token');
+                    window.location.href = '/login';
+                    return;
+                }
                 setTimeout(connectWs, Math.min(wsBackoff, 30000));
                 wsBackoff = Math.min(wsBackoff * 2, 30000);
             };
@@ -138,13 +140,12 @@
     function flashBadge() {
         const b = document.getElementById('collectorBadge');
         if (!b) return;
-        b.style.boxShadow = '0 0 12px rgba(74,222,128,0.6)';
+        b.style.color = 'var(--dot-success)';
         clearTimeout(flashBadge._t);
-        flashBadge._t = setTimeout(() => { b.style.boxShadow = ''; }, 200);
+        flashBadge._t = setTimeout(() => { b.style.color = ''; }, 300);
     }
 
     // ── BOOT ──────────────────────────────────────────────────────────────────
-    // Первая вкладка при загрузке — Дашборды (скрываем left-panel, показываем dashboardsView)
     function activateDefaultTab() {
         document.body.classList.add('no-left');
         showOnly('dashboardsView');
@@ -153,7 +154,6 @@
         if (dt) dt.classList.add('active');
     }
 
-    // Перехватываем app.js switchTab чтобы корректно синхронизировать наши вью
     const _origSwitchTab = window.switchTab;
     window.switchTab = function(name) {
         document.querySelectorAll('.tab').forEach(t =>
@@ -162,7 +162,6 @@
             document.body.classList.remove('no-left');
             showOnly('diagnosticsView');
             if (_origSwitchTab) _origSwitchTab(name);
-            // origSwitchTab sets tagsView to flex — hide it, we use diagnosticsView
             const tv = document.getElementById('tagsView');
             if (tv) tv.style.display = 'none';
             if (window.Diagnostics) Diagnostics.render();
