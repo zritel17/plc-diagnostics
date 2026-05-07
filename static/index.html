@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLC Edge Gateway — Allen-Bradley</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="header-title">🔧 PLC Edge Gateway</div>
+            <div class="header-stats">
+                <span class="header-stat">📊 Тегов: <strong id="tagCount">0</strong></span>
+                <span class="header-stat">⚙️ I/O: <strong id="ioCount">0</strong></span>
+                <span class="header-stat">📥 Сбор: <strong id="collectorBadge">—</strong></span>
+            </div>
+        </div>
+        <div class="header-right">
+            <span class="last-update" id="lastUpdate"></span>
+            <span class="status-badge" id="statusBadge">🔴 Офлайн</span>
+        </div>
+    </header>
+
+    <nav class="tabs">
+        <div class="tab active" data-tab="tags">📋 Теги</div>
+        <div class="tab" data-tab="io">⚙️ I/O</div>
+        <div class="tab" data-tab="collector">📥 Сбор данных</div>
+        <div class="tab" data-tab="dashboards">📈 Дашборды</div>
+    </nav>
+
+    <div class="main">
+        <aside class="left-panel" id="leftPanel">
+            <div class="left-toolbar">
+                <div class="connect-row">
+                    <input type="text" id="ipInput" placeholder="192.168.1.100" />
+                    <input type="number" id="slotInput" placeholder="Slot" value="0" min="0" max="15" />
+                </div>
+                <button class="btn" id="connectBtn">🔌 Подключить</button>
+
+                <div class="history-section">
+                    <div class="history-title">📜 История (10):</div>
+                    <div class="history-list" id="historyList">
+                        <div style="color:#64748b; font-size:11px; text-align:center; padding:8px;">Пусто</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="alertContainer" style="padding: 8px 12px;"></div>
+
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="🔍 Поиск тега..." />
+                <div class="search-row">
+                    <select id="typeFilter">
+                        <option value="">Все типы</option>
+                        <option value="BOOL">BOOL</option>
+                        <option value="INT">SINT/INT/DINT/LINT</option>
+                        <option value="REAL">REAL</option>
+                        <option value="STRING">STRING</option>
+                        <option value="TIMER">TIMER</option>
+                        <option value="COUNTER">COUNTER</option>
+                        <option value="OTHER">UDT/Прочее</option>
+                    </select>
+                    <button class="btn btn-secondary btn-small" id="expandAllBtn">▼ Все</button>
+                    <button class="btn btn-secondary btn-small" id="collapseAllBtn">▲ Свернуть</button>
+                </div>
+            </div>
+
+            <div class="tree-container" id="tagTree">
+                <div class="empty-state">
+                    <div class="empty-state-icon">⚡</div>
+                    <div>Подключитесь к ПЛК</div>
+                    <div style="font-size:11px; margin-top:8px; color:#64748b;">для просмотра тегов</div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="right-panel" id="rightPanel">
+            <div id="tagsView" style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="detail-panel" id="detailPanel"></div>
+                <div id="placeholder" class="empty-state" style="margin-top: 40px;">
+                    <div class="empty-state-icon">👈</div>
+                    <div>Выберите тег для просмотра</div>
+                </div>
+            </div>
+
+            <div id="ioView" class="io-container" style="display: none;">
+                <div id="ioContainer">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚙️</div>
+                        <div>Подключитесь к ПЛК</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Сбор данных -->
+            <div id="collectorView" class="full-view" style="display:none;">
+                <div class="card">
+                    <div class="card-title">Статус коллектора</div>
+                    <div class="card-body" id="collectorStatusBody">
+                        <div class="status-grid">
+                            <div class="status-cell">
+                                <div class="status-label">Состояние</div>
+                                <div class="status-value" id="collState">—</div>
+                            </div>
+                            <div class="status-cell">
+                                <div class="status-label">ПЛК</div>
+                                <div class="status-value" id="collPlcIp">—</div>
+                            </div>
+                            <div class="status-cell">
+                                <div class="status-label">Опросов</div>
+                                <div class="status-value" id="collPolls">0</div>
+                            </div>
+                            <div class="status-cell">
+                                <div class="status-label">Записей</div>
+                                <div class="status-value" id="collWrites">0</div>
+                            </div>
+                            <div class="status-cell">
+                                <div class="status-label">Ошибок</div>
+                                <div class="status-value" id="collErrors">0</div>
+                            </div>
+                            <div class="status-cell">
+                                <div class="status-label">InfluxDB</div>
+                                <div class="status-value" id="collInflux">—</div>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn" id="collStartBtn">▶ Запустить</button>
+                            <button class="btn btn-secondary" id="collStopBtn">■ Остановить</button>
+                            <span class="muted" id="collLastError"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Настройки</div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <label>IP ПЛК</label>
+                            <input type="text" id="collIpInput" placeholder="192.168.1.100" />
+                            <label>Slot</label>
+                            <input type="number" id="collSlotInput" min="0" max="15" value="0" style="width:70px;" />
+                        </div>
+                        <div class="form-row">
+                            <label>Интервал опроса (мс)</label>
+                            <input type="number" id="collPollInput" min="50" max="10000" value="100" style="width:100px;" />
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="collAutostart" />
+                                Автозапуск при старте Pi
+                            </label>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn" id="collSaveSettingsBtn">💾 Сохранить настройки</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        Теги для сбора <span class="muted" id="cfgCounter">(0)</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-actions" style="margin-bottom: 12px;">
+                            <button class="btn" id="cfgAddFromPlcBtn">+ Добавить из ПЛК</button>
+                            <button class="btn btn-secondary" id="cfgRefreshBtn">🔄 Обновить</button>
+                            <span class="muted">Подключитесь к ПЛК на вкладке «Теги», затем добавляйте теги в сбор.</span>
+                        </div>
+                        <table class="data-table" id="cfgTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40%;">Тег</th>
+                                    <th>Тип</th>
+                                    <th>Режим</th>
+                                    <th>Параметр</th>
+                                    <th>Активен</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="cfgTableBody">
+                                <tr><td colspan="6" class="empty-row">Список пуст</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Дашборды -->
+            <div id="dashboardsView" class="full-view" style="display:none;">
+                <div class="card">
+                    <div class="card-title">Дашборды</div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <label>Текущий</label>
+                            <select id="dashSelect"></select>
+                            <button class="btn btn-secondary btn-small" id="dashNewBtn">+ Новый</button>
+                            <button class="btn btn-secondary btn-small" id="dashRenameBtn">✎ Переименовать</button>
+                            <button class="btn btn-secondary btn-small" id="dashDeleteBtn">🗑 Удалить</button>
+                            <button class="btn btn-secondary btn-small" id="dashRefreshBtn">🔄</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Добавить виджет</div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <label>Тег</label>
+                            <select id="widTag" style="min-width: 220px;"></select>
+                            <label>Тип</label>
+                            <select id="widType">
+                                <option value="line_chart">График</option>
+                                <option value="gauge">Шкала</option>
+                                <option value="stat">Число</option>
+                                <option value="table">Таблица</option>
+                            </select>
+                            <label>Период</label>
+                            <select id="widRange">
+                                <option value="-15m">15 мин</option>
+                                <option value="-1h" selected>1 час</option>
+                                <option value="-6h">6 часов</option>
+                                <option value="-24h">24 часа</option>
+                                <option value="-7d">7 дней</option>
+                                <option value="-30d">30 дней</option>
+                            </select>
+                            <label>Агрегация</label>
+                            <select id="widAgg">
+                                <option value="">— (как есть)</option>
+                                <option value="mean">mean</option>
+                                <option value="min">min</option>
+                                <option value="max">max</option>
+                                <option value="last">last</option>
+                            </select>
+                            <button class="btn" id="widAddBtn">＋ Добавить</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="dashGrid" class="dash-grid"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script src="/static/collector.js"></script>
+    <script src="/static/config.js"></script>
+    <script src="/static/dashboard.js"></script>
+    <script src="/static/init_extras.js"></script>
+</body>
+</html>

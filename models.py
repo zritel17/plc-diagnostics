@@ -1,0 +1,95 @@
+"""
+Pydantic схемы для новых API-эндпоинтов.
+"""
+from datetime import datetime
+from typing import Optional, List, Literal
+from pydantic import BaseModel, Field
+
+
+# ===== Tags config =====
+
+class TagConfigIn(BaseModel):
+    tag_name: str
+    tag_type: Optional[str] = None
+    update_mode: Literal["on_change", "on_interval"]
+    interval_sec: Optional[int] = Field(default=None, ge=1)
+    deadband: float = 0.0
+    enabled: int = 1
+
+
+class TagConfigOut(TagConfigIn):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SaveTagsRequest(BaseModel):
+    tags: List[TagConfigIn]
+    replace_all: bool = False
+
+
+# ===== Collector =====
+
+class CollectorSettingsModel(BaseModel):
+    autostart: int = 0
+    poll_interval_ms: int = Field(default=100, ge=50, le=10_000)
+    plc_ip: Optional[str] = None
+    plc_slot: int = Field(default=0, ge=0, le=15)
+
+
+class CollectorStatus(BaseModel):
+    running: bool
+    started_at: Optional[str] = None
+    polls: int = 0
+    writes: int = 0
+    errors: int = 0
+    last_poll_at: Optional[str] = None
+    last_error: Optional[str] = None
+    plc_ip: Optional[str] = None
+    influx_available: bool = False
+    influx_error: Optional[str] = None
+    on_change_count: int = 0
+    on_interval_count: int = 0
+
+
+# ===== Dashboards =====
+
+class WidgetIn(BaseModel):
+    tag_name: str
+    widget_type: Literal["line_chart", "gauge", "table", "stat"]
+    time_range: str = "1h"
+    aggregation: Optional[str] = None
+    position_x: int = 0
+    position_y: int = 0
+    width: int = 6
+    height: int = 4
+    title: Optional[str] = None
+
+
+class WidgetOut(WidgetIn):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class DashboardIn(BaseModel):
+    name: str
+
+
+class DashboardOut(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    widgets: List[WidgetOut] = []
+
+    class Config:
+        from_attributes = True
+
+
+class DashboardUpdate(BaseModel):
+    name: Optional[str] = None
+    widgets: Optional[List[WidgetIn]] = None  # если заданы — заменить полностью
