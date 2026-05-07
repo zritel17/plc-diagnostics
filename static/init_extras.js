@@ -25,7 +25,6 @@
     };
 
     // Проверяем токен на сервере сразу при загрузке.
-    // Если сервер перезапускался — токен протух, редиректим на логин.
     fetch('/api/auth/check').catch(() => {
         localStorage.removeItem('plc_token');
         window.location.href = '/login';
@@ -39,7 +38,7 @@
 
     // ── TAB MANAGEMENT ────────────────────────────────────────────────────────
     function showOnly(viewId) {
-        ['collectorView', 'dashboardsView', 'controlView', 'diagnosticsView'].forEach(id => {
+        ['plcView', 'collectorView', 'dashboardsView', 'controlView'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = (id === viewId) ? 'flex' : 'none';
         });
@@ -47,7 +46,31 @@
         if (tv) tv.style.display = 'none';
     }
 
+    // Restore tags from localStorage cache when offline
+    function restoreTagsFromCache() {
+        if (window.isConnected) return;
+        try {
+            const cache = localStorage.getItem('plc_tags_cache');
+            if (cache) {
+                const data = JSON.parse(cache);
+                if (data && Object.keys(data).length > 0) {
+                    window.tagsData = data;
+                }
+            }
+        } catch {}
+    }
+
     function bindTabs() {
+        const plcTab = document.querySelector('.tab[data-tab="plc"]');
+        if (plcTab) {
+            plcTab.addEventListener('click', () => {
+                document.body.classList.add('no-left');
+                showOnly('plcView');
+                restoreTagsFromCache();
+                if (window.Diagnostics) Diagnostics.render();
+            });
+        }
+
         const dashTab = document.querySelector('.tab[data-tab="dashboards"]');
         if (dashTab) {
             dashTab.addEventListener('click', () => {
@@ -73,15 +96,6 @@
                 showOnly('collectorView');
                 if (window.Collector) { Collector.fetchStatus(); Collector.loadSettings(); }
                 if (window.TagCfg) TagCfg.loadConfigs();
-            });
-        }
-
-        const tagsTab = document.querySelector('.tab[data-tab="tags"]');
-        if (tagsTab) {
-            tagsTab.addEventListener('click', () => {
-                document.body.classList.remove('no-left');
-                showOnly('diagnosticsView');
-                if (window.Diagnostics) Diagnostics.render();
             });
         }
     }
@@ -122,7 +136,6 @@
             };
             ws.onclose = ev => {
                 ws = null;
-                // Код 4001 — сервер отклонил токен, перенаправляем на логин
                 if (ev.code === 4001) {
                     localStorage.removeItem('plc_token');
                     window.location.href = '/login';
@@ -148,39 +161,69 @@
     // ── BOOT ──────────────────────────────────────────────────────────────────
     function activateDefaultTab() {
         document.body.classList.add('no-left');
-        showOnly('dashboardsView');
+        showOnly('plcView');
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        const dt = document.querySelector('.tab[data-tab="dashboards"]');
+        const dt = document.querySelector('.tab[data-tab="plc"]');
         if (dt) dt.classList.add('active');
+        restoreTagsFromCache();
     }
 
     const _origSwitchTab = window.switchTab;
     window.switchTab = function(name) {
         document.querySelectorAll('.tab').forEach(t =>
             t.classList.toggle('active', t.dataset.tab === name));
-        if (name === 'tags') {
-            document.body.classList.remove('no-left');
-            showOnly('diagnosticsView');
+        if (name === 'plc' || name === 'tags') {
+            document.body.classList.add('no-left');
+            showOnly('plcView');
             if (_origSwitchTab) _origSwitchTab(name);
             const tv = document.getElementById('tagsView');
             if (tv) tv.style.display = 'none';
+            restoreTagsFromCache();
             if (window.Diagnostics) Diagnostics.render();
         } else {
             if (_origSwitchTab) _origSwitchTab(name);
         }
     };
 
+    function restoreLastIpSlot() {
+        const lastIp = localStorage.getItem('plc_last_ip');
+        const lastSlot = localStorage.getItem('plc_last_slot');
+        if (lastIp) {
+            const el = document.getElementById('ipInput');
+            if (el && !el.value) el.value = lastIp;
+        }
+        if (lastSlot !== null) {
+            const el = document.getElementById('slotInput');
+            if (el && el.value === '0') el.value = lastSlot;
+        }
+    }
+
+    function bindConnectSave() {
+        document.getElementById('connectBtn')?.addEventListener('click', () => {
+            const ip = document.getElementById('ipInput')?.value.trim();
+            const slot = document.getElementById('slotInput')?.value || '0';
+            if (ip) {
+                localStorage.setItem('plc_last_ip', ip);
+                localStorage.setItem('plc_last_slot', slot);
+            }
+        });
+    }
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             bindTabs();
             initModules();
             activateDefaultTab();
+            restoreLastIpSlot();
+            bindConnectSave();
             connectWs();
         });
     } else {
         bindTabs();
         initModules();
         activateDefaultTab();
+        restoreLastIpSlot();
+        bindConnectSave();
         connectWs();
     }
 })();

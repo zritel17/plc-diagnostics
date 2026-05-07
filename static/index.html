@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PLC Edge Gateway — Allen-Bradley</title>
-    <link rel="stylesheet" href="/static/styles.css?v=3">
+    <link rel="stylesheet" href="/static/styles.css?v=5">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -21,10 +21,10 @@
 
         <nav class="pkl-nav-section">
             <div class="pkl-nav-section-title">Навигация</div>
-            <div class="tab active" data-tab="dashboards">Дашборды</div>
+            <div class="tab active" data-tab="plc">ПЛК</div>
             <div class="tab" data-tab="control">Контрольная панель</div>
-            <div class="tab" data-tab="collector">Выбор тегов</div>
-            <div class="tab" data-tab="tags">Диагностика</div>
+            <div class="tab" data-tab="dashboards">Дашборды</div>
+            <div class="tab" data-tab="collector">Теги</div>
         </nav>
 
         <div class="pkl-sidebar-footer">
@@ -55,67 +55,35 @@
 
         <!-- WORKING AREA -->
         <div class="main">
-            <aside class="left-panel" id="leftPanel">
-                <div class="left-toolbar">
-                    <div class="connect-row">
-                        <input type="text" id="ipInput" placeholder="192.168.1.100" />
-                        <input type="number" id="slotInput" placeholder="Slot" value="0" min="0" max="15" />
-                    </div>
-                    <button class="btn" id="connectBtn">Подключить</button>
+            <main class="right-panel" id="rightPanel">
 
-                    <div class="history-section">
-                        <div class="history-title">История (10):</div>
-                        <div class="history-list" id="historyList">
-                            <div style="color:var(--fg-muted); font-size:11px; text-align:center; padding:8px;">Пусто</div>
+                <!-- ПЛК tab: connection + live tag table -->
+                <div id="plcView" class="full-view" style="display:none;">
+
+                    <!-- Connection card -->
+                    <div class="card" style="flex-shrink:0;">
+                        <div class="card-title">Подключение к ПЛК</div>
+                        <div class="card-body">
+                            <div class="form-row" style="margin-bottom:0;">
+                                <label>IP</label>
+                                <input type="text" id="ipInput" placeholder="192.168.1.100" style="min-width:160px;" />
+                                <label>Slot</label>
+                                <input type="number" id="slotInput" value="0" min="0" max="15" style="width:70px;" />
+                                <button class="btn" id="connectBtn">Подключить</button>
+                            </div>
+                            <div id="alertContainer" style="margin-top:6px;"></div>
+                            <div class="history-section" style="margin-top:8px;">
+                                <div class="history-title">История (10):</div>
+                                <div class="history-list" id="historyList">
+                                    <div style="color:var(--fg-muted);font-size:11px;text-align:center;padding:6px;">Пусто</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div id="alertContainer" style="padding: 8px 12px;"></div>
-
-                <div class="search-bar">
-                    <input type="text" id="searchInput" placeholder="Поиск тега..." />
-                    <div class="search-row">
-                        <select id="typeFilter">
-                            <option value="">Все типы</option>
-                            <option value="BOOL">BOOL</option>
-                            <option value="INT">SINT/INT/DINT/LINT</option>
-                            <option value="REAL">REAL</option>
-                            <option value="STRING">STRING</option>
-                            <option value="TIMER">TIMER</option>
-                            <option value="COUNTER">COUNTER</option>
-                            <option value="OTHER">UDT/Прочее</option>
-                        </select>
-                        <button class="btn btn-secondary btn-small" id="expandAllBtn">▼ Все</button>
-                        <button class="btn btn-secondary btn-small" id="collapseAllBtn">▲ Свернуть</button>
-                    </div>
-                </div>
-
-                <div class="tree-container" id="tagTree">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">⚡</div>
-                        <div>Подключитесь к ПЛК</div>
-                        <div style="font-size:11px; margin-top:8px; color:var(--fg-muted);">для просмотра тегов</div>
-                    </div>
-                </div>
-            </aside>
-
-            <main class="right-panel" id="rightPanel">
-                <div id="tagsView" style="display: none; flex-direction: column; gap: 12px;">
-                    <div class="detail-panel" id="detailPanel"></div>
-                    <div id="placeholder" class="empty-state" style="margin-top: 40px;">
-                        <div class="empty-state-icon">👈</div>
-                        <div>Выберите тег для просмотра</div>
-                    </div>
-                </div>
-
-                <!-- ioView — kept for app.js compatibility -->
-                <div id="ioView" class="io-container" style="display: none;"></div>
-
-                <!-- Diagnostics — live tag table -->
-                <div id="diagnosticsView" class="full-view" style="display:flex; flex-direction:column; gap:12px; padding:12px;">
+                    <!-- Search / filter toolbar -->
                     <div class="diag-toolbar">
-                        <input type="text" id="diagSearch" placeholder="Поиск..." />
+                        <input type="text" id="diagSearch" placeholder="Поиск тега..." />
                         <select id="diagTypeFilter">
                             <option value="">Все типы</option>
                             <option value="BOOL">BOOL</option>
@@ -130,10 +98,13 @@
                             <input type="checkbox" id="diagFavOnly" /> ★ Только избранные
                         </label>
                     </div>
+
+                    <!-- Live tag table -->
                     <div id="diagTableWrap">
                         <div class="empty-state">
-                            <div class="empty-state-icon">🔬</div>
-                            <div>Подключитесь к ПЛК на вкладке «Диагностика»</div>
+                            <div class="empty-state-icon">⚡</div>
+                            <div>Подключитесь к ПЛК</div>
+                            <div style="font-size:11px;margin-top:8px;color:var(--fg-muted);">Введите IP адрес и нажмите «Подключить»</div>
                         </div>
                     </div>
                 </div>
@@ -238,7 +209,7 @@
                             <div class="card-actions" style="margin-bottom: 12px;">
                                 <button class="btn" id="cfgAddFromPlcBtn">+ Добавить из ПЛК</button>
                                 <button class="btn btn-secondary" id="cfgRefreshBtn">Обновить</button>
-                                <span class="muted">Подключитесь к ПЛК на вкладке «Диагностика», затем добавляйте теги в сбор.</span>
+                                <span class="muted">Подключитесь к ПЛК на вкладке «ПЛК», затем добавляйте теги в сбор.</span>
                             </div>
                             <table class="data-table" id="cfgTable">
                                 <thead>
@@ -312,18 +283,31 @@
 
                     <div id="dashGrid" class="dash-grid"></div>
                 </div>
+
+                <!-- app.js compat elements (hidden) -->
+                <div id="tagsView" style="display:none; flex-direction:column; gap:12px;">
+                    <div class="detail-panel" id="detailPanel"></div>
+                    <div id="placeholder" style="display:none;"></div>
+                </div>
+                <div id="ioView" style="display:none;"></div>
+                <div id="tagTree" style="display:none;"></div>
+                <input id="searchInput" style="display:none;" />
+                <select id="typeFilter" style="display:none;"></select>
+                <button id="expandAllBtn" style="display:none;"></button>
+                <button id="collapseAllBtn" style="display:none;"></button>
+
             </main>
         </div><!-- .main -->
 
     </div><!-- .pkl-main -->
 </div><!-- .pkl-app -->
 
-    <script src="/static/app.js?v=4"></script>
-    <script src="/static/collector.js?v=4"></script>
-    <script src="/static/config.js?v=4"></script>
-    <script src="/static/dashboard.js?v=4"></script>
-    <script src="/static/control.js?v=4"></script>
-    <script src="/static/diagnostics.js?v=4"></script>
-    <script src="/static/init_extras.js?v=4"></script>
+    <script src="/static/app.js?v=5"></script>
+    <script src="/static/collector.js?v=5"></script>
+    <script src="/static/config.js?v=5"></script>
+    <script src="/static/dashboard.js?v=5"></script>
+    <script src="/static/control.js?v=5"></script>
+    <script src="/static/diagnostics.js?v=5"></script>
+    <script src="/static/init_extras.js?v=5"></script>
 </body>
 </html>

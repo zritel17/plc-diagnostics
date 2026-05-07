@@ -577,6 +577,12 @@ body {
   border: 1px solid var(--border); user-select: none;
 }
 .diag-edit-btn:hover { background: var(--hover-bg); color: var(--fg); }
+.diag-hist-btn {
+  font-size: 10px; padding: 3px 8px; border-radius: var(--radius-xs);
+  background: rgba(74,167,133,0.10); color: #2F7C5C; cursor: pointer;
+  border: 1px solid rgba(74,167,133,0.25); user-select: none;
+}
+.diag-hist-btn:hover { background: rgba(74,167,133,0.20); }
 
 .diag-expanded-row td { background: var(--surface) !important; padding: 0; }
 .diag-expand-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
@@ -690,7 +696,7 @@ body {
    NO-LEFT STATE + FULL VIEWS
    ===================================================================== */
 body.no-left .left-panel { display: none !important; }
-body.no-left .right-panel { padding: 20px; }
+body.no-left .right-panel { padding: 0; }
 
 .full-view {
   display: flex; flex-direction: column;

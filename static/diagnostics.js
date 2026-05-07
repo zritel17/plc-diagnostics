@@ -1,12 +1,14 @@
 /**
- * Diagnostics — живая таблица тегов для вкладки «Диагностика».
+ * Diagnostics — живая таблица тегов для вкладки «ПЛК».
  * Читает window.tagsData (заполняет app.js), рендерит таблицу
- * с фильтром, избранным (localStorage), раскрытием битов DINT/DINT[].
+ * с фильтром, избранным (localStorage), раскрытием битов DINT,
+ * и кнопками записи/добавления в сбор.
  */
 window.Diagnostics = (() => {
-    const FAV_KEY = 'plc_diag_favs';
+    const FAV_KEY   = 'plc_diag_favs';
+    const CACHE_KEY = 'plc_tags_cache';
     let favs = new Set();
-    let expanded = new Set();    // tagName → раскрыт
+    let expanded = new Set();
     let searchQ = '';
     let typeF = '';
     let favOnly = false;
@@ -23,6 +25,15 @@ window.Diagnostics = (() => {
         render();
     }
 
+    function saveTagsCache() {
+        try {
+            const td = window.tagsData;
+            if (td && Object.keys(td).length > 0) {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(td));
+            }
+        } catch {}
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
     function esc(s) {
         return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -34,11 +45,7 @@ window.Diagnostics = (() => {
         const td = window.tagsData || {};
         for (const cat in td) {
             for (const tag of td[cat]) {
-                if (tag.is_array) {
-                    rows.push({ ...tag, _cat: cat, _isRoot: true });
-                } else {
-                    rows.push({ ...tag, _cat: cat, _isRoot: true });
-                }
+                rows.push({ ...tag, _cat: cat, _isRoot: true });
             }
         }
         return rows;
@@ -61,8 +68,9 @@ window.Diagnostics = (() => {
         if (!rows.length) {
             const connected = window.isConnected;
             wrap.innerHTML = `<div class="empty-state">
-                <div class="empty-state-icon">${connected ? '🔍' : '🔬'}</div>
-                <div>${connected ? 'Ничего не найдено' : 'Подключитесь к ПЛК на вкладке «Диагностика»'}</div>
+                <div class="empty-state-icon">${connected ? '🔍' : '⚡'}</div>
+                <div>${connected ? 'Ничего не найдено' : 'Подключитесь к ПЛК'}</div>
+                ${!connected ? '<div style="font-size:11px;margin-top:8px;color:var(--fg-muted);">Введите IP адрес и нажмите «Подключить»</div>' : ''}
             </div>`;
             return;
         }
@@ -115,9 +123,12 @@ window.Diagnostics = (() => {
                          ontouchstart="window.momentaryDown&&window.momentaryDown('${ea(r.name)}',this,event)"
                          ontouchend="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)"
                          ontouchcancel="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)">⏺ Момент.</span>`;
-        } else if (!r.is_array && !isBool) {
+        } else if (!r.is_array) {
             actions = `<span class="diag-edit-btn" onclick="window.editValue&&window.editValue('${ea(r.name)}')">✎ Запись</span>`;
         }
+
+        const fullType = r.type + (r.is_array ? '[]' : '');
+        actions += ` <span class="diag-hist-btn" onclick="Diagnostics._addCollect('${ea(r.name)}','${ea(fullType)}')">+ Сбор</span>`;
 
         return `<tr class="diag-row${canExpand ? ' expandable' : ''}" data-name="${ea(r.name)}">
             <td class="diag-fav" onclick="Diagnostics._fav('${ea(r.name)}')">${isFav ? '★' : '☆'}</td>
@@ -152,7 +163,6 @@ window.Diagnostics = (() => {
             return html;
         }
 
-        // Scalar DINT — bits grid
         if (r.bits) {
             return `<tr class="diag-expanded-row"><td colspan="5">${renderBitsInline(r)}</td></tr>`;
         }
@@ -183,27 +193,54 @@ window.Diagnostics = (() => {
                 render();
             });
         });
-        wrap.querySelectorAll('.diag-fav').forEach(cell => {
-            // already bound via onclick inline
-        });
+    }
+
+    // ── add to collector ──────────────────────────────────────────────────────
+    async function addToCollector(name, type) {
+        const payload = {
+            tags: [{ tag_name: name, tag_type: type, update_mode: 'on_change', deadband: 0, enabled: 1 }],
+            replace_all: false
+        };
+        try {
+            const r = await fetch('/api/config/tags/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!r.ok) {
+                const e = await r.json().catch(() => ({}));
+                alert('Ошибка: ' + (e.detail || r.status));
+            }
+        } catch (e) {
+            alert('Ошибка сети: ' + e.message);
+        }
     }
 
     // ── external call from app.js after data refresh ──────────────────────────
     function onTagsUpdated() {
-        const diagVisible = document.getElementById('diagnosticsView')?.style.display === 'flex';
-        if (diagVisible) renderUpdateOnly();
+        saveTagsCache();
+        const plcVisible = document.getElementById('plcView')?.style.display === 'flex';
+        if (!plcVisible) return;
+        const wrap = document.getElementById('diagTableWrap');
+        const hasTable = wrap?.querySelector('.diag-table');
+        if (hasTable) {
+            renderUpdateOnly(); // table built — just patch values
+        } else {
+            render(); // first connection or reconnect — build the table
+        }
     }
 
     function renderUpdateOnly() {
-        // Patch values in DOM without full re-render
         const td = window.tagsData || {};
+        let needsFullRender = false;
         for (const cat in td) {
             for (const t of td[cat]) {
                 updateVal(t.name, t.value, t.type);
-                if (t.elements) t.elements.forEach(e => { updateVal(e.name, e.value, e.type); updateBits(e); });
-                updateBits(t);
+                if (t.elements) t.elements.forEach(e => { updateVal(e.name, e.value, e.type); if (e.bits && expanded.has(e.name)) needsFullRender = true; });
+                if (t.bits && expanded.has(t.name)) needsFullRender = true;
             }
         }
+        if (needsFullRender) render();
     }
 
     function cssEsc(s) { return String(s).replace(/[\\"]/g, '\\$&'); }
@@ -217,16 +254,6 @@ window.Diagnostics = (() => {
                 el.classList.toggle('val-bool-off', value === '0');
             }
         });
-    }
-
-    function updateBits(tag) {
-        if (!tag.bits) return;
-        const wrap = document.querySelector(`.diag-bits-wrap [data-bit-parent="${cssEsc(tag.name)}"]`);
-        // just re-render expanded if it's open
-        if (expanded.has(tag.name)) {
-            const el = document.querySelector(`.diag-expanded-row`);
-            if (el) { /* full render is fine for expanded */ }
-        }
     }
 
     function init() {
@@ -245,15 +272,18 @@ window.Diagnostics = (() => {
             render();
         });
 
-        // Hook into app.js data refresh
+        // Hook into app.js data refresh to sync window.tagsData/isConnected and update display
         const _origLoad = window.loadTags;
         if (_origLoad) {
             window.loadTags = async function() {
                 await _origLoad();
+                // app.js uses let at global scope; expose on window for other modules
+                window.tagsData = tagsData;       // global let from app.js
+                window.isConnected = isConnected; // global let from app.js
                 onTagsUpdated();
             };
         }
     }
 
-    return { init, render, onTagsUpdated, _fav: toggleFav };
+    return { init, render, onTagsUpdated, _fav: toggleFav, _addCollect: addToCollector };
 })();
