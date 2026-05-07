@@ -274,10 +274,6 @@ window.Diagnostics = (() => {
                             data-modkey="${safeKey}" data-dir="out" data-ch="${out.channel}" title="${ea(out.tag)}">
                             <div class="io-ch-num">CH${out.channel}</div>
                             <div class="io-ch-val">${chVal(out.value)}</div>
-                            <div class="io-ch-force">
-                                <span class="io-force-btn io-force-1" onclick="Diagnostics._ioForce('${ea(out.tag)}',1,event)">▶ 1</span>
-                                <span class="io-force-btn io-force-0" onclick="Diagnostics._ioForce('${ea(out.tag)}',0,event)">■ 0</span>
-                            </div>
                         </div>`;
                     }
                     html += '</div></div>';
