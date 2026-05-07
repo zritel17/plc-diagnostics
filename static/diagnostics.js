@@ -116,7 +116,8 @@ window.Diagnostics = (() => {
         const isBool = type === 'BOOL';
         const isReal = type === 'REAL';
         const isStr  = type === 'STRING';
-        const canExpand = isDint || isDintArr;
+        const hasFields = r.fields && r.fields.length > 0;
+        const canExpand = isDint || isDintArr || hasFields;
         const isExp = expanded.has(r.name);
         const dir = ioDir(r.name);
         const isInput = dir === 'in';
@@ -154,7 +155,7 @@ window.Diagnostics = (() => {
             <td><span class="type-badge">${esc(r.type)}${r.is_array ? '[]' : ''}</span></td>
             <td><span class="diag-val ${valClass}" data-value-of="${ea(r.name)}">${displayVal}</span></td>
             <td class="diag-actions">
-                ${canExpand ? `<span class="diag-expand-btn" data-expand="${ea(r.name)}">${isExp ? '▲ Скрыть' : '▼ Биты'}</span>` : ''}
+                ${canExpand ? `<span class="diag-expand-btn" data-expand="${ea(r.name)}">${isExp ? '▲ Скрыть' : (hasFields ? '▼ Поля' : '▼ Биты')}</span>` : ''}
                 ${actions}
             </td>
         </tr>`;
@@ -181,10 +182,35 @@ window.Diagnostics = (() => {
             return html;
         }
 
+        if (r.fields && r.fields.length > 0) {
+            return renderFieldsInline(r.fields);
+        }
+
         if (r.bits) {
             return `<tr class="diag-expanded-row"><td colspan="5">${renderBitsInline(r)}</td></tr>`;
         }
         return '';
+    }
+
+    function renderFieldsInline(fields) {
+        let html = `<tr class="diag-expanded-row"><td colspan="5"><div class="diag-expand-body">
+<table class="data-table" style="width:100%;font-size:11px;margin:0;">
+<thead><tr><th>Поле</th><th style="width:70px;">Тип</th><th style="width:120px;">Значение</th></tr></thead>
+<tbody>`;
+        for (const f of fields) {
+            const ftype = (f.type || '').toUpperCase();
+            const vClass = ftype === 'BOOL' ? (f.value === '1' ? 'val-bool-on' : 'val-bool-off')
+                         : ftype === 'REAL' ? 'val-real'
+                         : ftype === 'STRING' ? 'val-str'
+                         : 'val-num';
+            html += `<tr>
+                <td class="tag-name-cell">${esc(f.display_name || f.name)}</td>
+                <td><span class="type-badge">${esc(f.type)}</span></td>
+                <td><span class="diag-val ${vClass}" data-value-of="${ea(f.name)}">${esc(f.value)}</span></td>
+            </tr>`;
+        }
+        html += `</tbody></table></div></td></tr>`;
+        return html;
     }
 
     function renderBitsInline(tag) {

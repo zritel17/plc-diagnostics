@@ -31,6 +31,7 @@ from models import (
     TagConfigIn, TagConfigOut, SaveTagsRequest,
     CollectorSettingsModel, CollectorStatus,
     WidgetIn, WidgetOut, DashboardIn, DashboardOut, DashboardUpdate,
+    RecipeSnapshotCreate, RecipeChangesPayload,
 )
 from collector import collector
 
@@ -257,6 +258,69 @@ def get_bits(val, num_bits):
     except:
         return [0] * num_bits
 
+def _fields_from_udt(plc, udt_obj, tag_name: str, depth: int = 0) -> list:
+    if depth > 3:
+        return []
+    members = []
+    udt_by_name = getattr(plc, 'UDTByName', {})
+    for field in getattr(udt_obj, 'Fields', []):
+        fname = getattr(field, 'TagName', '')
+        if not fname or fname.startswith('__'):
+            continue
+        if getattr(field, 'Internal', False):
+            continue
+        full_name = f"{tag_name}.{fname}"
+        rel_name = full_name[len(tag_name) + 1:]
+        ftype = str(getattr(field, 'DataType', None) or 'DINT').upper()
+        is_struct = bool(getattr(field, 'Struct', 0))
+        if is_struct and ftype in udt_by_name and depth < 3:
+            nested = _fields_from_udt(plc, udt_by_name[ftype], full_name, depth + 1)
+            if nested:
+                members.extend(nested)
+                continue
+        members.append({'name': full_name, 'display_name': rel_name, 'type': ftype})
+    return members
+
+def _py_to_plc_type(val) -> str:
+    if isinstance(val, bool):            return 'BOOL'
+    if isinstance(val, int):             return 'DINT'
+    if isinstance(val, float):           return 'REAL'
+    if isinstance(val, (str, bytes)):    return 'STRING'
+    return 'DINT'
+
+def _flatten_udt_dict(d: dict, prefix: str, base: str, depth: int = 0) -> list:
+    members = []
+    if depth > 5: return members
+    for key, val in d.items():
+        full_name = f"{prefix}.{key}"
+        rel_name = full_name[len(base) + 1:]
+        if isinstance(val, dict):
+            members.extend(_flatten_udt_dict(val, full_name, base, depth + 1))
+        else:
+            members.append({
+                'name': full_name,
+                'display_name': rel_name,
+                'type': _py_to_plc_type(val),
+            })
+    return members
+
+def enumerate_udt_members(plc, tag_name: str, udt_type_name: str = '') -> list:
+    udt_by_name = getattr(plc, 'UDTByName', {})
+    if udt_type_name and udt_type_name in udt_by_name:
+        members = _fields_from_udt(plc, udt_by_name[udt_type_name], tag_name)
+        if members:
+            print(f"[UDT] {tag_name} ({udt_type_name}): {len(members)} членов из шаблона")
+            return members
+    try:
+        r = plc.Read(tag_name)
+        val = getattr(r, 'Value', None)
+        if getattr(r, 'Status', '') == "Success" and isinstance(val, dict) and val:
+            return _flatten_udt_dict(val, tag_name, tag_name)
+    except Exception as e:
+        print(f"[WARN] UDT read {tag_name}: {e}")
+    return []
+
+
 @app.get("/")
 async def root():
     return FileResponse(f"{STATIC_DIR}/index.html")
@@ -375,12 +439,23 @@ async def connect(request: PLCConnectRequest):
         io_modules = scan_io_modules(plc, tag_structure)
         print(f"[CONNECT] Найдено I/O модулей: {len(io_modules)}")
         
+        # Enumerate UDT members for recipe support (limit to first 30 to stay fast)
+        udt_list = tag_structure.get('UDT', [])
+        print(f"[CONNECT] Читаю структуру {min(len(udt_list), 30)} UDT тегов...")
+        for udt_tag in udt_list[:30]:
+            members = enumerate_udt_members(plc, udt_tag['name'], udt_tag.get('type', ''))
+            if members:
+                udt_tag['fields'] = members
+                for m in members:
+                    all_tags_raw.append({'name': m['name'], 'type': m['type']})
+                print(f"[CONNECT]   {udt_tag['name']}: {len(members)} членов")
+
         current_plc = plc
         current_ip = ip
         current_slot = slot
-        
+
         add_to_history(ip, slot, "success")
-        
+
         return {
             "status": "connected",
             "ip": ip, "slot": slot,
@@ -603,11 +678,15 @@ async def get_tags():
                     if tag.get('fields'):
                         fields = []
                         for f in tag['fields']:
-                            field_name = f"{tag_name}.{f['name']}"
+                            # UDT fields store full path; TIMER/COUNTER store short names
+                            if f['name'].startswith(tag_name + '.'):
+                                field_name = f['name']
+                            else:
+                                field_name = f"{tag_name}.{f['name']}"
                             fv = tag_values.get(field_name)
                             fields.append({
                                 'name': field_name,
-                                'display_name': f['name'],
+                                'display_name': f.get('display_name', f['name']),
                                 'desc': f.get('desc', ''),
                                 'type': f['type'],
                                 'value': format_value(fv, f['type'])
@@ -967,6 +1046,131 @@ async def ws_live(ws: WebSocket, token: str = ""):
             await ws.close()
         except Exception:
             pass
+
+
+# ============================================================================
+# РЕЦЕПТЫ (UDT)
+# ============================================================================
+
+@app.get("/api/recipes")
+async def get_recipes():
+    """Список UDT тегов как рецептов с определениями членов."""
+    if not current_plc:
+        return {"recipes": [], "connected": False}
+    recipes = []
+    for t in tag_structure.get('UDT', []):
+        fields = t.get('fields', [])
+        recipes.append({
+            'name': t['name'],
+            'udt_type': t['type'],
+            'member_count': len(fields),
+            'members': [{'name': f['name'], 'display_name': f['display_name'], 'type': f['type']}
+                        for f in fields],
+        })
+    return {"recipes": recipes, "connected": True}
+
+
+@app.get("/api/recipes/{tag_name:path}/read")
+async def read_recipe_values(tag_name: str):
+    """Читает живые значения всех членов UDT тега."""
+    if not current_plc:
+        raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
+
+    fields = []
+    for t in tag_structure.get('UDT', []):
+        if t['name'] == tag_name:
+            fields = t.get('fields', [])
+            break
+
+    if not fields:
+        fields = await asyncio.to_thread(enumerate_udt_members, current_plc, tag_name)
+
+    if not fields:
+        raise HTTPException(status_code=404, detail="Члены UDT не найдены")
+
+    members = []
+    for f in fields:
+        try:
+            r = await asyncio.to_thread(current_plc.Read, f['name'])
+            val = format_value(r.Value, f['type']) if r.Status == "Success" else "N/A"
+        except Exception:
+            val = "N/A"
+        members.append({
+            'name': f['name'],
+            'display_name': f['display_name'],
+            'type': f['type'],
+            'value': val,
+        })
+    return {"tag": tag_name, "members": members}
+
+
+@app.get("/api/recipes/{tag_name:path}/snapshots")
+async def list_snapshots(tag_name: str):
+    async with SessionLocal() as s:
+        res = await s.execute(
+            select(db_module.RecipeSnapshot)
+            .where(db_module.RecipeSnapshot.recipe_tag == tag_name)
+            .order_by(db_module.RecipeSnapshot.created_at.desc())
+        )
+        rows = list(res.scalars().all())
+    return [{"id": r.id, "label": r.label,
+             "created_at": r.created_at.isoformat(),
+             "values": json.loads(r.values_json)} for r in rows]
+
+
+@app.post("/api/recipes/{tag_name:path}/snapshots")
+async def save_snapshot(tag_name: str, body: RecipeSnapshotCreate):
+    if not body.values:
+        raise HTTPException(status_code=400, detail="Нет значений для сохранения")
+    async with SessionLocal() as s:
+        snap = db_module.RecipeSnapshot(
+            recipe_tag=tag_name,
+            label=body.label,
+            values_json=json.dumps(body.values, ensure_ascii=False),
+        )
+        s.add(snap)
+        await s.commit()
+        await s.refresh(snap)
+    return {"id": snap.id, "label": snap.label, "created_at": snap.created_at.isoformat()}
+
+
+@app.delete("/api/recipes/snapshots/{snap_id}")
+async def delete_snapshot(snap_id: int):
+    async with SessionLocal() as s:
+        row = await s.get(db_module.RecipeSnapshot, snap_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Снимок не найден")
+        await s.delete(row)
+        await s.commit()
+    return {"status": "ok"}
+
+
+@app.get("/api/recipes/{tag_name:path}/changes")
+async def get_recipe_changes(tag_name: str, limit: int = Query(100, le=500)):
+    async with SessionLocal() as s:
+        res = await s.execute(
+            select(db_module.RecipeChange)
+            .where(db_module.RecipeChange.recipe_tag == tag_name)
+            .order_by(db_module.RecipeChange.changed_at.desc())
+            .limit(limit)
+        )
+        rows = list(res.scalars().all())
+    return [{"id": r.id, "member": r.member, "old_value": r.old_value,
+             "new_value": r.new_value, "changed_at": r.changed_at.isoformat()} for r in rows]
+
+
+@app.post("/api/recipes/{tag_name:path}/changes")
+async def log_recipe_changes(tag_name: str, payload: RecipeChangesPayload):
+    async with SessionLocal() as s:
+        for c in payload.changes:
+            s.add(db_module.RecipeChange(
+                recipe_tag=tag_name,
+                member=c.member,
+                old_value=c.old_value,
+                new_value=c.new_value,
+            ))
+        await s.commit()
+    return {"status": "ok", "logged": len(payload.changes)}
 
 
 # ============================================================================

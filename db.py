@@ -77,6 +77,25 @@ class Widget(Base):
     dashboard: Mapped[Dashboard] = relationship(back_populates="widgets")
 
 
+class RecipeSnapshot(Base):
+    __tablename__ = "recipe_snapshots"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recipe_tag: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String, nullable=False, default="Снимок")
+    values_json: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class RecipeChange(Base):
+    __tablename__ = "recipe_changes"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recipe_tag: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    member: Mapped[str] = mapped_column(String, nullable=False)
+    old_value: Mapped[Optional[str]] = mapped_column(String)
+    new_value: Mapped[str] = mapped_column(String, nullable=False, default="")
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

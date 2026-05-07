@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PLC Edge Gateway — Allen-Bradley</title>
-    <link rel="stylesheet" href="/static/styles.css?v=7">
+    <link rel="stylesheet" href="/static/styles.css?v=9">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -25,6 +25,7 @@
             <div class="tab" data-tab="control">Контрольная панель</div>
             <div class="tab" data-tab="dashboards">Дашборды</div>
             <div class="tab" data-tab="collector">Теги</div>
+            <div class="tab" data-tab="recipes">Рецепты</div>
         </nav>
 
         <div class="pkl-sidebar-footer">
@@ -290,6 +291,9 @@
                     <div id="dashGrid" class="dash-grid"></div>
                 </div>
 
+                <!-- Recipes (UDT) -->
+                <div id="recipesView" class="full-view" style="display:none;"></div>
+
                 <!-- app.js compat elements (hidden) -->
                 <div id="tagsView" style="display:none; flex-direction:column; gap:12px;">
                     <div class="detail-panel" id="detailPanel"></div>
@@ -308,12 +312,13 @@
     </div><!-- .pkl-main -->
 </div><!-- .pkl-app -->
 
-    <script src="/static/app.js?v=7"></script>
-    <script src="/static/collector.js?v=7"></script>
-    <script src="/static/config.js?v=7"></script>
-    <script src="/static/dashboard.js?v=7"></script>
-    <script src="/static/control.js?v=7"></script>
-    <script src="/static/diagnostics.js?v=7"></script>
-    <script src="/static/init_extras.js?v=7"></script>
+    <script src="/static/app.js?v=9"></script>
+    <script src="/static/collector.js?v=9"></script>
+    <script src="/static/config.js?v=9"></script>
+    <script src="/static/dashboard.js?v=9"></script>
+    <script src="/static/control.js?v=9"></script>
+    <script src="/static/diagnostics.js?v=9"></script>
+    <script src="/static/recipes.js?v=9"></script>
+    <script src="/static/init_extras.js?v=9"></script>
 </body>
 </html>

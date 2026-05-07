@@ -93,3 +93,20 @@ class DashboardOut(BaseModel):
 class DashboardUpdate(BaseModel):
     name: Optional[str] = None
     widgets: Optional[List[WidgetIn]] = None  # если заданы — заменить полностью
+
+
+# ===== Recipes =====
+
+class RecipeSnapshotCreate(BaseModel):
+    label: str = "Снимок"
+    values: dict  # {member_name: value_str}
+
+
+class RecipeChangeItem(BaseModel):
+    member: str
+    old_value: Optional[str] = None
+    new_value: str
+
+
+class RecipeChangesPayload(BaseModel):
+    changes: List[RecipeChangeItem]
