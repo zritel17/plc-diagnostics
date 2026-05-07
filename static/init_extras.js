@@ -212,6 +212,24 @@
         }
     }
 
+    function restoreAutoConnect() {
+        const cb = document.getElementById('autoConnectCheck');
+        if (!cb) return;
+        cb.checked = localStorage.getItem('plc_autoconnect') === '1';
+        cb.addEventListener('change', () => {
+            localStorage.setItem('plc_autoconnect', cb.checked ? '1' : '0');
+        });
+    }
+
+    function tryAutoConnect() {
+        if (localStorage.getItem('plc_autoconnect') !== '1') return;
+        const ip = localStorage.getItem('plc_last_ip');
+        if (!ip) return;
+        setTimeout(() => {
+            if (!window.isConnected && typeof connect === 'function') connect();
+        }, 400);
+    }
+
     function bindConnectSave() {
         document.getElementById('connectBtn')?.addEventListener('click', () => {
             const ip = document.getElementById('ipInput')?.value.trim();
@@ -229,7 +247,9 @@
             initModules();
             activateDefaultTab();
             restoreLastIpSlot();
+            restoreAutoConnect();
             bindConnectSave();
+            tryAutoConnect();
             connectWs();
         });
     } else {
@@ -237,7 +257,9 @@
         initModules();
         activateDefaultTab();
         restoreLastIpSlot();
+        restoreAutoConnect();
         bindConnectSave();
+        tryAutoConnect();
         connectWs();
     }
 })();
