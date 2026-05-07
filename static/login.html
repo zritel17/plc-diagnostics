@@ -4,99 +4,139 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PLC Edge Gateway — Вход</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: #0f172a;
-            color: #e2e8f0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: #ECECEE;
+            color: #1C1C1C;
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        .login-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            width: 100%;
+            max-width: 400px;
+            padding: 24px;
+        }
+        .login-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .login-brand img { width: 32px; height: 32px; }
+        .login-brand-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1C1C1C;
         }
         .login-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 40px 36px;
-            width: 360px;
-            box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+            background: #FFFFFF;
+            border-radius: 20px;
+            padding: 36px 32px;
+            width: 100%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
         }
         .login-title {
             font-size: 20px;
-            font-weight: 700;
-            color: #93c5fd;
-            margin-bottom: 6px;
-            text-align: center;
+            font-weight: 600;
+            color: #1C1C1C;
+            margin-bottom: 4px;
         }
         .login-sub {
-            font-size: 12px;
-            color: #64748b;
-            text-align: center;
+            font-size: 13px;
+            color: rgba(28,28,28,0.45);
             margin-bottom: 28px;
         }
-        label {
+        .field-label {
             display: block;
             font-size: 12px;
-            color: #94a3b8;
             font-weight: 600;
+            color: rgba(28,28,28,0.55);
             margin-bottom: 6px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.05em;
         }
         input[type="password"] {
             width: 100%;
             padding: 10px 14px;
-            background: #0f172a;
-            border: 1px solid #475569;
-            border-radius: 6px;
-            color: #e2e8f0;
+            background: #F5F5F6;
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 8px;
+            color: #1C1C1C;
             font-size: 14px;
+            font-family: inherit;
             margin-bottom: 20px;
-            transition: border-color 0.2s;
+            transition: border-color 160ms cubic-bezier(0.2,0.8,0.2,1),
+                        background 160ms cubic-bezier(0.2,0.8,0.2,1);
+            outline: none;
         }
         input[type="password"]:focus {
-            outline: none;
-            border-color: #667eea;
+            background: #fff;
+            border-color: rgba(0,0,0,0.28);
         }
-        button {
+        button[type="submit"] {
             width: 100%;
             padding: 11px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #1C1C1C;
+            color: #fff;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 14px;
-            font-weight: 700;
+            font-weight: 600;
+            font-family: inherit;
             cursor: pointer;
-            transition: opacity 0.2s;
+            transition: opacity 160ms;
         }
-        button:hover { opacity: 0.9; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .error {
-            background: rgba(239,68,68,0.15);
-            color: #fca5a5;
-            border: 1px solid rgba(239,68,68,0.4);
-            border-radius: 5px;
+        button[type="submit"]:hover { opacity: 0.82; }
+        button[type="submit"]:disabled { opacity: 0.35; cursor: not-allowed; }
+        .error-msg {
+            background: rgba(229,72,77,0.08);
+            color: #B12C30;
+            border: 1px solid rgba(229,72,77,0.22);
+            border-radius: 6px;
             padding: 8px 12px;
             font-size: 12px;
             margin-top: 14px;
             display: none;
         }
+        .login-footer {
+            font-size: 12px;
+            color: rgba(28,28,28,0.35);
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <div class="login-card">
-        <div class="login-title">🔧 PLC Edge Gateway</div>
-        <div class="login-sub">Allen-Bradley ControlLogix</div>
-        <form id="loginForm">
-            <label>Пароль</label>
-            <input type="password" id="pwdInput" placeholder="Введите пароль" autofocus />
-            <button type="submit" id="loginBtn">Войти</button>
-            <div class="error" id="errMsg"></div>
-        </form>
+    <div class="login-wrap">
+        <div class="login-brand">
+            <img src="/static/assets/logo-glyph.svg" alt="" />
+            <span class="login-brand-name">PLC Gateway</span>
+        </div>
+
+        <div class="login-card">
+            <div class="login-title">Вход</div>
+            <div class="login-sub">Allen-Bradley ControlLogix</div>
+            <form id="loginForm">
+                <label class="field-label" for="pwdInput">Пароль</label>
+                <input type="password" id="pwdInput" placeholder="Введите пароль" autofocus />
+                <button type="submit" id="loginBtn">Войти</button>
+                <div class="error-msg" id="errMsg"></div>
+            </form>
+        </div>
+
+        <div class="login-footer">PLC Edge Gateway &mdash; Allen-Bradley EtherNet/IP</div>
     </div>
+
     <script>
         document.getElementById('loginForm').addEventListener('submit', async e => {
             e.preventDefault();
@@ -104,7 +144,7 @@
             const err = document.getElementById('errMsg');
             const pwd = document.getElementById('pwdInput').value;
             btn.disabled = true;
-            btn.textContent = '⏳';
+            btn.textContent = '...';
             err.style.display = 'none';
             try {
                 const r = await fetch('/api/auth/login', {
