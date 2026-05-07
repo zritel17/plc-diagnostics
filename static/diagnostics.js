@@ -202,6 +202,14 @@ window.Diagnostics = (() => {
     }
 
     // ── I/O modules section ───────────────────────────────────────────────────
+    function chClass(dir, val) {
+        if (val === null || val === undefined) return `io-ch io-ch-${dir} io-ch-null`;
+        return `io-ch io-ch-${dir} ${val ? 'io-ch-on' : 'io-ch-off'}`;
+    }
+    function chVal(val) {
+        return (val === null || val === undefined) ? '—' : (val ? '1' : '0');
+    }
+
     function renderIoModules() {
         const wrap = document.getElementById('ioModulesWrap');
         if (!wrap) return;
@@ -212,17 +220,20 @@ window.Diagnostics = (() => {
         html += '<div class="io-modules-title">Модули ввода/вывода</div>';
 
         for (const mod of data) {
-            const key = `s${mod.slot}`;
-            const isExp = ioExpanded.has(key);
+            const modKey = mod.name || String(mod.slot);
+            const isExp = ioExpanded.has(modKey);
             const badges = [];
-            if (mod.inputs?.length)        badges.push(`<span class="io-badge io-in">IN ×${mod.inputs.length}</span>`);
-            if (mod.outputs?.length)       badges.push(`<span class="io-badge io-out">OUT ×${mod.outputs.length}</span>`);
-            if (mod.analog_inputs?.length) badges.push(`<span class="io-badge" style="background:rgba(120,60,220,.10);color:#5b34a8;border-color:rgba(120,60,220,.25);">AI ×${mod.analog_inputs.length}</span>`);
-            if (mod.analog_outputs?.length)badges.push(`<span class="io-badge" style="background:rgba(180,100,0,.10);color:#7a4500;border-color:rgba(180,100,0,.25);">AO ×${mod.analog_outputs.length}</span>`);
+            if (mod.inputs?.length)        badges.push(`<span class="io-badge io-in">IN \xd7${mod.inputs.length}</span>`);
+            if (mod.outputs?.length)       badges.push(`<span class="io-badge io-out">OUT \xd7${mod.outputs.length}</span>`);
+            if (mod.analog_inputs?.length) badges.push(`<span class="io-badge io-badge-ai">AI \xd7${mod.analog_inputs.length}</span>`);
+            if (mod.analog_outputs?.length)badges.push(`<span class="io-badge io-badge-ao">AO \xd7${mod.analog_outputs.length}</span>`);
+
+            const title = esc(mod.name || `Slot ${mod.slot}`);
+            const safeKey = ea(modKey);
 
             html += `<div class="io-mod-card">
-                <div class="io-mod-header" onclick="Diagnostics._ioToggle(${mod.slot})">
-                    <span class="io-mod-slot">Slot ${mod.slot}</span>
+                <div class="io-mod-header" onclick="Diagnostics._ioToggle(${JSON.stringify(modKey)})">
+                    <span class="io-mod-slot">${title}</span>
                     <span class="io-mod-badges">${badges.join(' ')}</span>
                     <span class="io-mod-chevron">${isExp ? '▲' : '▼'}</span>
                 </div>`;
@@ -231,30 +242,38 @@ window.Diagnostics = (() => {
                 html += '<div class="io-mod-body">';
 
                 if (mod.inputs?.length) {
-                    const activeIn = mod.inputs.filter(x => x.value).length;
+                    const readable = mod.inputs.filter(x => x.value !== null && x.value !== undefined);
+                    const activeIn = readable.filter(x => x.value).length;
+                    const countLabel = readable.length
+                        ? `${activeIn} / ${readable.length} активны`
+                        : '<span class="io-no-access">нет доступа</span>';
                     html += `<div class="io-ch-group">
-                        <div class="io-ch-group-title">Дискретные входы <span class="io-ch-count">${activeIn} / ${mod.inputs.length} активны</span></div>
+                        <div class="io-ch-group-title">Дискретные входы <span class="io-ch-count">${countLabel}</span></div>
                         <div class="io-ch-grid">`;
                     for (const ch of mod.inputs) {
-                        html += `<div class="io-ch io-ch-in ${ch.value ? 'io-ch-on' : 'io-ch-off'}"
-                            data-slot="${mod.slot}" data-dir="in" data-ch="${ch.channel}" title="${ea(ch.tag)}">
+                        html += `<div class="${chClass('in', ch.value)}"
+                            data-modkey="${safeKey}" data-dir="in" data-ch="${ch.channel}" title="${ea(ch.tag)}">
                             <div class="io-ch-num">CH${ch.channel}</div>
-                            <div class="io-ch-val">${ch.value ? '1' : '0'}</div>
+                            <div class="io-ch-val">${chVal(ch.value)}</div>
                         </div>`;
                     }
                     html += '</div></div>';
                 }
 
                 if (mod.outputs?.length) {
-                    const activeOut = mod.outputs.filter(x => x.value).length;
+                    const readable = mod.outputs.filter(x => x.value !== null && x.value !== undefined);
+                    const activeOut = readable.filter(x => x.value).length;
+                    const countLabel = readable.length
+                        ? `${activeOut} / ${readable.length} активны`
+                        : '<span class="io-no-access">нет доступа</span>';
                     html += `<div class="io-ch-group">
-                        <div class="io-ch-group-title">Дискретные выходы <span class="io-ch-count">${activeOut} / ${mod.outputs.length} активны</span></div>
+                        <div class="io-ch-group-title">Дискретные выходы <span class="io-ch-count">${countLabel}</span></div>
                         <div class="io-ch-grid">`;
                     for (const out of mod.outputs) {
-                        html += `<div class="io-ch io-ch-out ${out.value ? 'io-ch-on' : 'io-ch-off'}"
-                            data-slot="${mod.slot}" data-dir="out" data-ch="${out.channel}" title="${ea(out.tag)}">
+                        html += `<div class="${chClass('out', out.value)}"
+                            data-modkey="${safeKey}" data-dir="out" data-ch="${out.channel}" title="${ea(out.tag)}">
                             <div class="io-ch-num">CH${out.channel}</div>
-                            <div class="io-ch-val">${out.value ? '1' : '0'}</div>
+                            <div class="io-ch-val">${chVal(out.value)}</div>
                             <div class="io-ch-force">
                                 <span class="io-force-btn io-force-1" onclick="Diagnostics._ioForce('${ea(out.tag)}',1,event)">▶ 1</span>
                                 <span class="io-force-btn io-force-0" onclick="Diagnostics._ioForce('${ea(out.tag)}',0,event)">■ 0</span>
@@ -267,9 +286,10 @@ window.Diagnostics = (() => {
                 if (mod.analog_inputs?.length) {
                     html += '<div class="io-ch-group"><div class="io-ch-group-title">Аналоговые входы</div><div class="io-analog-grid">';
                     for (const ch of mod.analog_inputs) {
-                        html += `<div class="io-analog-ch" data-slot="${mod.slot}" data-dir="ai" data-ch="${ch.channel}" title="${ea(ch.tag)}">
+                        const v = ch.value !== null && ch.value !== undefined ? Number(ch.value).toFixed(2) : '—';
+                        html += `<div class="io-analog-ch" data-modkey="${safeKey}" data-dir="ai" data-ch="${ch.channel}" title="${ea(ch.tag)}">
                             <span class="io-analog-label">Ch${ch.channel}</span>
-                            <span class="io-analog-val">${Number(ch.value||0).toFixed(2)}</span>
+                            <span class="io-analog-val">${v}</span>
                         </div>`;
                     }
                     html += '</div></div>';
@@ -278,10 +298,11 @@ window.Diagnostics = (() => {
                 if (mod.analog_outputs?.length) {
                     html += '<div class="io-ch-group"><div class="io-ch-group-title">Аналоговые выходы</div><div class="io-analog-grid">';
                     for (const ch of mod.analog_outputs) {
-                        html += `<div class="io-analog-ch io-analog-writable" data-slot="${mod.slot}" data-dir="ao" data-ch="${ch.channel}" title="${ea(ch.tag)}"
+                        const v = ch.value !== null && ch.value !== undefined ? Number(ch.value).toFixed(2) : '—';
+                        html += `<div class="io-analog-ch io-analog-writable" data-modkey="${safeKey}" data-dir="ao" data-ch="${ch.channel}" title="${ea(ch.tag)}"
                             onclick="window.editValue&&editValue('${ea(ch.tag)}')">
                             <span class="io-analog-label">Ch${ch.channel}</span>
-                            <span class="io-analog-val">${Number(ch.value||0).toFixed(2)}</span>
+                            <span class="io-analog-val">${v}</span>
                             <span class="io-analog-edit">✎</span>
                         </div>`;
                     }
@@ -301,35 +322,37 @@ window.Diagnostics = (() => {
         if (!wrap) return;
         const data = window.ioData || [];
         for (const mod of data) {
-            if (!ioExpanded.has(`s${mod.slot}`)) continue;
+            const modKey = ea(mod.name || String(mod.slot));
+            if (!ioExpanded.has(mod.name || String(mod.slot))) continue;
             for (const ch of (mod.inputs || [])) {
-                const cell = wrap.querySelector(`[data-slot="${mod.slot}"][data-dir="in"][data-ch="${ch.channel}"]`);
+                const cell = wrap.querySelector(`[data-modkey="${modKey}"][data-dir="in"][data-ch="${ch.channel}"]`);
                 if (!cell) continue;
-                cell.className = `io-ch io-ch-in ${ch.value ? 'io-ch-on' : 'io-ch-off'}`;
-                const v = cell.querySelector('.io-ch-val'); if (v) v.textContent = ch.value ? '1' : '0';
+                cell.className = chClass('in', ch.value);
+                const v = cell.querySelector('.io-ch-val'); if (v) v.textContent = chVal(ch.value);
             }
             for (const ch of (mod.outputs || [])) {
-                const cell = wrap.querySelector(`[data-slot="${mod.slot}"][data-dir="out"][data-ch="${ch.channel}"]`);
+                const cell = wrap.querySelector(`[data-modkey="${modKey}"][data-dir="out"][data-ch="${ch.channel}"]`);
                 if (!cell) continue;
-                cell.className = `io-ch io-ch-out ${ch.value ? 'io-ch-on' : 'io-ch-off'}`;
-                const v = cell.querySelector('.io-ch-val'); if (v) v.textContent = ch.value ? '1' : '0';
+                cell.className = chClass('out', ch.value);
+                const v = cell.querySelector('.io-ch-val'); if (v) v.textContent = chVal(ch.value);
             }
             for (const ch of (mod.analog_inputs || [])) {
-                const cell = wrap.querySelector(`[data-slot="${mod.slot}"][data-dir="ai"][data-ch="${ch.channel}"]`);
+                const cell = wrap.querySelector(`[data-modkey="${modKey}"][data-dir="ai"][data-ch="${ch.channel}"]`);
                 if (!cell) continue;
-                const v = cell.querySelector('.io-analog-val'); if (v) v.textContent = Number(ch.value||0).toFixed(2);
+                const v = cell.querySelector('.io-analog-val');
+                if (v) v.textContent = ch.value !== null && ch.value !== undefined ? Number(ch.value).toFixed(2) : '—';
             }
             for (const ch of (mod.analog_outputs || [])) {
-                const cell = wrap.querySelector(`[data-slot="${mod.slot}"][data-dir="ao"][data-ch="${ch.channel}"]`);
+                const cell = wrap.querySelector(`[data-modkey="${modKey}"][data-dir="ao"][data-ch="${ch.channel}"]`);
                 if (!cell) continue;
-                const v = cell.querySelector('.io-analog-val'); if (v) v.textContent = Number(ch.value||0).toFixed(2);
+                const v = cell.querySelector('.io-analog-val');
+                if (v) v.textContent = ch.value !== null && ch.value !== undefined ? Number(ch.value).toFixed(2) : '—';
             }
         }
     }
 
-    function _ioToggle(slot) {
-        const key = `s${slot}`;
-        if (ioExpanded.has(key)) ioExpanded.delete(key); else ioExpanded.add(key);
+    function _ioToggle(modKey) {
+        if (ioExpanded.has(modKey)) ioExpanded.delete(modKey); else ioExpanded.add(modKey);
         renderIoModules();
     }
 
@@ -356,6 +379,7 @@ window.Diagnostics = (() => {
             renderIoModules();
         }
     }
+
 
     // ── events ────────────────────────────────────────────────────────────────
     function bindEvents(wrap) {

@@ -630,6 +630,11 @@ body {
 .io-force-1:hover { background: rgba(34,139,230,0.25); }
 .io-force-0 { background: rgba(200,30,30,0.10); color: #991111; border-color: rgba(200,30,30,0.2); }
 .io-force-0:hover { background: rgba(200,30,30,0.22); }
+.io-ch-null { background: var(--bg); opacity: 0.55; }
+.io-ch-null .io-ch-val { color: var(--fg-muted); }
+.io-no-access { color: var(--fg-muted); font-weight: 400; font-style: italic; }
+.io-badge-ai { background: rgba(120,60,220,.10); color: #5b34a8; border: 1px solid rgba(120,60,220,.25); }
+.io-badge-ao { background: rgba(180,100,0,.10);  color: #7a4500; border: 1px solid rgba(180,100,0,.25); }
 .io-analog-grid { display: flex; flex-wrap: wrap; gap: 5px; }
 .io-analog-ch {
   display: flex; align-items: center; gap: 8px; padding: 5px 10px;

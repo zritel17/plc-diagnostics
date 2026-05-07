@@ -370,9 +370,9 @@ async def connect(request: PLCConnectRequest):
             add_to_history(ip, slot, "failed - нет тегов")
             raise HTTPException(status_code=400, detail="Не удалось получить теги")
         
-        # Сканируем I/O модули
-        print(f"[CONNECT] Сканирую I/O слоты 0-15...")
-        io_modules = scan_io_modules(plc)
+        # Сканируем I/O модули из известных MODULE тегов
+        print(f"[CONNECT] Сканирую I/O модули...")
+        io_modules = scan_io_modules(plc, tag_structure)
         print(f"[CONNECT] Найдено I/O модулей: {len(io_modules)}")
         
         current_plc = plc
@@ -414,93 +414,103 @@ async def disconnect():
     
     return {"status": "disconnected"}
 
-def scan_io_modules(plc):
-    """Сканирование I/O модулей в слотах 0-15"""
-    modules = []
-    
-    for slot_num in range(16):
-        module = {
-            'slot': slot_num,
-            'has_input': False,
-            'has_output': False,
-            'inputs': [],
-            'outputs': [],
-            'analog_inputs': [],
-            'analog_outputs': [],
-            'data_size': 32,  # Сколько битов в модуле
-            'output_size': 32
-        }
-        
-        # Дискретные входы - читаем .Data как int
+def parse_channel_count(dtype: str) -> int:
+    """Extract channel count from module type string. AB:5000_DI16:I:0 → 16"""
+    import re
+    m = re.search(r'[A-Z_](\d{1,3})(?:[^0-9]|$)', dtype.upper())
+    if m:
+        n = int(m.group(1))
+        if 1 <= n <= 128:
+            return n
+    return 1
+
+def try_read_channel_data(plc, base_tag: str, ch_count: int):
+    """Try various patterns to read discrete channel bits. Returns list of values or Nones."""
+    # Pattern 1: base.Data as DINT bitmask
+    try:
+        r = plc.Read(f"{base_tag}.Data")
+        if r.Status == "Success" and r.Value is not None and isinstance(r.Value, (int, bool)):
+            int_val = int(r.Value)
+            if int_val < 0:
+                int_val = (1 << 32) + int_val
+            return [(int_val >> i) & 1 for i in range(ch_count)]
+    except Exception:
+        pass
+
+    # Pattern 2: individual bit members base.0 .. base.N
+    vals = []
+    any_ok = False
+    for i in range(ch_count):
         try:
-            r = plc.Read(f"Local:{slot_num}:I.Data")
+            r = plc.Read(f"{base_tag}.{i}")
             if r.Status == "Success" and r.Value is not None:
-                module['has_input'] = True
-                int_val = int(r.Value)
-                if int_val < 0:
-                    int_val = (1 << 32) + int_val
-                
-                # Определяем размер - читаем биты пока статус успешен
-                num_bits = 32
-                # Можно начать с 32 и подстраивать
-                module['data_size'] = num_bits
-                module['inputs'] = [{
-                    'channel': i,
-                    'tag': f"Local:{slot_num}:I.Data.{i}",
-                    'value': (int_val >> i) & 1
-                } for i in range(num_bits)]
-        except Exception as e:
+                vals.append(1 if r.Value else 0)
+                any_ok = True
+                continue
+        except Exception:
             pass
-        
-        # Дискретные выходы
-        try:
-            r = plc.Read(f"Local:{slot_num}:O.Data")
-            if r.Status == "Success" and r.Value is not None:
-                module['has_output'] = True
-                int_val = int(r.Value)
-                if int_val < 0:
-                    int_val = (1 << 32) + int_val
-                num_bits = 32
-                module['output_size'] = num_bits
-                module['outputs'] = [{
-                    'channel': i,
-                    'tag': f"Local:{slot_num}:O.Data.{i}",
-                    'value': (int_val >> i) & 1
-                } for i in range(num_bits)]
-        except:
-            pass
-        
-        # Аналоговые входы (Ch0Data .. Ch7Data)
-        for ch in range(16):
-            try:
-                r = plc.Read(f"Local:{slot_num}:I.Ch{ch}Data")
-                if r.Status == "Success" and r.Value is not None:
-                    module['analog_inputs'].append({
-                        'channel': ch,
-                        'tag': f"Local:{slot_num}:I.Ch{ch}Data",
-                        'value': float(r.Value) if isinstance(r.Value, (int, float)) else 0
-                    })
-            except:
-                pass
-        
-        # Аналоговые выходы
-        for ch in range(16):
-            try:
-                r = plc.Read(f"Local:{slot_num}:O.Ch{ch}Data")
-                if r.Status == "Success" and r.Value is not None:
-                    module['analog_outputs'].append({
-                        'channel': ch,
-                        'tag': f"Local:{slot_num}:O.Ch{ch}Data",
-                        'value': float(r.Value) if isinstance(r.Value, (int, float)) else 0
-                    })
-            except:
-                pass
-        
-        # Если нашли что-то - добавляем модуль
-        if module['has_input'] or module['has_output'] or module['analog_inputs'] or module['analog_outputs']:
-            modules.append(module)
-    
-    return modules
+        vals.append(None)
+    if any_ok:
+        return vals
+
+    return [None] * ch_count
+
+def scan_io_modules(plc, tag_structure: dict):
+    """Build I/O module list from known MODULE/IO tags in tag_structure."""
+    import re
+    groups = {}   # prefix → module dict
+
+    for cat in ('MODULE', 'IO'):
+        for tag in tag_structure.get(cat, []):
+            name = tag['name']
+            dtype = tag.get('type', '')
+            # Match: Local:4:O  or  GC_1000:I1  or  Local:1:I
+            m = re.match(r'^(.+):([IOC])(\d*)$', name)
+            if not m:
+                continue
+            prefix, dir_char, suffix = m.groups()
+            if dir_char == 'C':
+                continue  # config assembly, skip
+
+            if prefix not in groups:
+                slot_m = re.search(r'(\d+)$', prefix)
+                groups[prefix] = {
+                    'slot': int(slot_m.group(1)) if slot_m else 0,
+                    'name': prefix,
+                    'has_input': False, 'has_output': False,
+                    'inputs': [], 'outputs': [],
+                    'analog_inputs': [], 'analog_outputs': [],
+                }
+
+            mod = groups[prefix]
+            ch_count = parse_channel_count(dtype)
+            tag_full = name  # e.g. Local:1:I
+
+            if dir_char == 'I':
+                # Skip diagnostic feedback assemblies of output modules
+                # (AB:5000_DO16_Diag:I:0 → these are faults, not real inputs)
+                if 'DO' in dtype.upper() and 'DIAG' in dtype.upper():
+                    continue
+                mod['has_input'] = True
+                mod['input_type'] = dtype
+                values = try_read_channel_data(plc, tag_full, ch_count)
+                mod['inputs'] = [
+                    {'channel': i, 'tag': f"{tag_full}.{i}", 'value': values[i]}
+                    for i in range(ch_count)
+                ]
+
+            elif dir_char == 'O':
+                mod['has_output'] = True
+                mod['output_type'] = dtype
+                values = try_read_channel_data(plc, tag_full, ch_count)
+                mod['outputs'] = [
+                    {'channel': i, 'tag': f"{tag_full}.{i}", 'value': values[i]}
+                    for i in range(ch_count)
+                ]
+
+    result = [m for m in groups.values() if m['has_input'] or m['has_output']]
+    result.sort(key=lambda m: (m['slot'], m['name']))
+    return result
 
 @app.get("/api/tags")
 async def get_tags():
@@ -598,56 +608,46 @@ async def get_tags():
 @app.get("/api/io")
 async def get_io():
     global current_plc, io_modules
-    
+
     if not current_plc:
         raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
-    
+
     try:
         for module in io_modules:
-            slot_num = module['slot']
-            
-            if module['has_input']:
+            for ch in module.get('inputs', []):
                 try:
-                    r = current_plc.Read(f"Local:{slot_num}:I.Data")
+                    r = current_plc.Read(ch['tag'])
                     if r.Status == "Success" and r.Value is not None:
-                        int_val = int(r.Value)
-                        if int_val < 0:
-                            int_val = (1 << 32) + int_val
-                        for inp in module['inputs']:
-                            inp['value'] = (int_val >> inp['channel']) & 1
-                except:
-                    pass
-            
-            if module['has_output']:
+                        ch['value'] = 1 if r.Value else 0
+                except Exception:
+                    pass  # keep previous value
+
+            for ch in module.get('outputs', []):
                 try:
-                    r = current_plc.Read(f"Local:{slot_num}:O.Data")
+                    r = current_plc.Read(ch['tag'])
                     if r.Status == "Success" and r.Value is not None:
-                        int_val = int(r.Value)
-                        if int_val < 0:
-                            int_val = (1 << 32) + int_val
-                        for out in module['outputs']:
-                            out['value'] = (int_val >> out['channel']) & 1
-                except:
+                        ch['value'] = 1 if r.Value else 0
+                except Exception:
                     pass
-            
-            for ch in module['analog_inputs']:
+
+            for ch in module.get('analog_inputs', []):
                 try:
                     r = current_plc.Read(ch['tag'])
                     if r.Status == "Success" and r.Value is not None:
                         ch['value'] = float(r.Value) if isinstance(r.Value, (int, float)) else 0
-                except:
+                except Exception:
                     pass
-            
-            for ch in module['analog_outputs']:
+
+            for ch in module.get('analog_outputs', []):
                 try:
                     r = current_plc.Read(ch['tag'])
                     if r.Status == "Success" and r.Value is not None:
                         ch['value'] = float(r.Value) if isinstance(r.Value, (int, float)) else 0
-                except:
+                except Exception:
                     pass
-        
+
         return io_modules
-        
+
     except Exception as e:
         print(f"[ERROR] io read: {e}")
         raise HTTPException(status_code=400, detail=f"Ошибка чтения I/O: {str(e)}")
