@@ -127,14 +127,16 @@ class LoginRequest(BaseModel):
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(AuthMiddleware)
 
-current_plc = None
+current_plc = None       # dedicated read connection (bg reader only)
+_write_plc = None        # dedicated write connection (write_tag only)
+_write_lock = asyncio.Lock()  # serializes concurrent writes
 current_ip = None
 current_slot = 0
 all_tags_raw = []
 tag_structure = {}
 io_modules = []
 last_update = None
-_plc_lock = asyncio.Lock()   # один поток в PLC одновременно
+_plc_lock = asyncio.Lock()   # kept for legacy; no longer used by bg reader
 _tags_cache = None            # последний успешный ответ /api/tags
 _io_cache = None              # последний успешный ответ /api/io
 
@@ -345,23 +347,28 @@ async def auth_check():
 
 @app.post("/api/connect")
 async def connect(request: PLCConnectRequest):
-    global current_plc, current_ip, current_slot, all_tags_raw, tag_structure, io_modules, _tags_cache, _io_cache
+    global current_plc, _write_plc, current_ip, current_slot, all_tags_raw, tag_structure, io_modules, _tags_cache, _io_cache
     _tags_cache = None
     _io_cache = None
-    
+
     ip = request.ip.strip()
     slot = request.slot
-    
+
     if not ip:
         raise HTTPException(status_code=400, detail="IP адрес не может быть пустым")
-    
+
     try:
         if current_plc:
             try:
                 current_plc.Close()
             except:
                 pass
-        
+        if _write_plc:
+            try:
+                _write_plc.Close()
+            except:
+                pass
+
         print(f"[CONNECT] {ip} slot={slot}")
         plc = PLC(ip, timeout=5)
         plc.ProcessorSlot = slot
@@ -457,6 +464,10 @@ async def connect(request: PLCConnectRequest):
                 print(f"[CONNECT]   {udt_tag['name']}: {len(members)} членов")
 
         current_plc = plc
+        # Separate write connection — independent TCP socket, no lock contention
+        write_plc = PLC(ip, timeout=5)
+        write_plc.ProcessorSlot = slot
+        _write_plc = write_plc
         current_ip = ip
         current_slot = slot
 
@@ -479,20 +490,26 @@ async def connect(request: PLCConnectRequest):
 
 @app.post("/api/disconnect")
 async def disconnect():
-    global current_plc, current_ip, current_slot, all_tags_raw, tag_structure, io_modules
-    
+    global current_plc, _write_plc, current_ip, current_slot, all_tags_raw, tag_structure, io_modules
+
     if current_plc:
         try:
             current_plc.Close()
         except:
             pass
+    if _write_plc:
+        try:
+            _write_plc.Close()
+        except:
+            pass
     current_plc = None
+    _write_plc = None
     current_ip = None
     current_slot = 0
     all_tags_raw = []
     tag_structure = {}
     io_modules = []
-    
+
     return {"status": "disconnected"}
 
 def parse_channel_count(dtype: str) -> int:
@@ -708,8 +725,7 @@ async def _plc_bg_reader():
     while not (shutdown_event and shutdown_event.is_set()):
         if current_plc and all_tags_raw:
             try:
-                async with _plc_lock:
-                    raw = await asyncio.to_thread(_sync_batch_read_tags)
+                raw = await asyncio.to_thread(_sync_batch_read_tags)
                 if raw:
                     ts = datetime.now().isoformat()
                     _tags_cache = {"tags": _build_tags_result(raw), "last_update": ts}
@@ -717,8 +733,7 @@ async def _plc_bg_reader():
             except Exception as e:
                 print(f"[BG] tags: {e}")
             try:
-                async with _plc_lock:
-                    await asyncio.to_thread(_sync_batch_read_io)
+                await asyncio.to_thread(_sync_batch_read_io)
                 _io_cache = io_modules
             except Exception as e:
                 print(f"[BG] io: {e}")
@@ -740,15 +755,14 @@ async def get_io():
 
 @app.post("/api/write")
 async def write_tag(request: WriteTagRequest):
-    global current_plc
-    
-    if not current_plc:
+    plc = _write_plc or current_plc
+    if not plc:
         raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
-    
+
     try:
         tag_name = request.tag.strip()
         tag_value = request.value.strip()
-        
+
         value = None
         try:
             if '.' in tag_value:
@@ -762,16 +776,16 @@ async def write_tag(request: WriteTagRequest):
                 value = False
             else:
                 value = tag_value
-        
-        async with _plc_lock:
-            response = await asyncio.to_thread(current_plc.Write, tag_name, value)
+
+        async with _write_lock:
+            response = await asyncio.to_thread(plc.Write, tag_name, value)
 
         if hasattr(response, 'Status') and response.Status == "Success":
             return {"status": "success", "tag": tag_name, "value": str(value)}
         else:
             status = response.Status if hasattr(response, 'Status') else "Unknown"
             raise HTTPException(status_code=400, detail=f"Ошибка записи: {status}")
-            
+
     except HTTPException:
         raise
     except Exception as e:
