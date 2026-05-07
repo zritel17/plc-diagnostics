@@ -718,6 +718,36 @@ body {
 }
 .ctrl-del-btn:hover { background: rgba(229,72,77,0.15); }
 
+/* section divider */
+.ctrl-section-card {
+  width: 100%; flex-basis: 100%;
+  background: transparent; border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 4px 4px; min-width: unset; max-width: unset;
+  box-shadow: none; align-items: flex-start;
+}
+.ctrl-section-header {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--fg-muted);
+}
+
+/* drag-and-drop */
+.ctrl-dragging  { opacity: 0.4; cursor: grabbing !important; }
+.ctrl-drag-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
+[draggable=true].ctrl-widget { cursor: grab; }
+
+/* secondary indicator inside button card */
+.ctrl-ind-secondary {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-radius: 6px;
+  border: 1px solid var(--border); width: 100%; box-sizing: border-box;
+  font-size: 11px; font-weight: 700;
+}
+.ctrl-ind-secondary.on  { background: rgba(74,167,133,0.12); border-color: #4AA785; color: #2F7C5C; }
+.ctrl-ind-secondary.off { background: var(--surface-2); color: var(--fg-muted); }
+.ctrl-ind-secondary .ctrl-indicator-bulb { width: 12px; height: 12px; flex-shrink: 0; }
+
 /* =====================================================================
    BOOL ACTION BUTTONS
    ===================================================================== */

@@ -133,11 +133,14 @@
                                     <option value="indicator">Индикатор</option>
                                     <option value="numeric_display">Числовой индикатор</option>
                                     <option value="numeric_input">Числовой ввод</option>
+                                    <option value="section">── Секция (заголовок) ──</option>
                                 </select>
                                 <label>Метка</label>
                                 <input type="text" id="ctrlWLabel" placeholder="Старт" style="width:120px;" />
-                                <label>Тег</label>
+                                <label id="ctrlTagLabel">Тег</label>
                                 <select id="ctrlWTag" style="min-width:200px;"></select>
+                                <label id="ctrlIndTagLabel" style="display:none;">Индикатор</label>
+                                <select id="ctrlWIndicatorTag" style="min-width:200px; display:none;"></select>
                                 <label class="ctrl-fav-label"><input type="checkbox" id="ctrlFavOnly"> ★ Избранные</label>
                                 <button class="btn btn-small" id="ctrlAddWidgetBtn">+ Добавить</button>
                             </div>

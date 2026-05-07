@@ -1,6 +1,6 @@
 /**
  * ControlPanel — HMI-панель с виджетами.
- * Типы: momentary_button, maintained_button, indicator, numeric_display, numeric_input.
+ * Типы: momentary_button, maintained_button, indicator, numeric_display, numeric_input, section.
  * Конфигурация хранится в localStorage ('plc_ctrl_widgets').
  */
 window.ControlPanel = (() => {
@@ -8,6 +8,7 @@ window.ControlPanel = (() => {
     let editMode = false;
     let widgets = [];
     let refreshTimer = null;
+    let dragSrc = null;
 
     // ── persistence ──────────────────────────────────────────────────────────
     function load() {
@@ -55,6 +56,8 @@ window.ControlPanel = (() => {
         return out;
     }
 
+    const BUTTON_TYPES = new Set(['momentary_button', 'maintained_button']);
+
     // ── render ────────────────────────────────────────────────────────────────
     function render() {
         const grid = document.getElementById('ctrlGrid');
@@ -68,32 +71,79 @@ window.ControlPanel = (() => {
         }
         for (const w of widgets) {
             const card = document.createElement('div');
-            card.className = 'ctrl-widget';
+            card.className = 'ctrl-widget' + (w.type === 'section' ? ' ctrl-section-card' : '');
             card.dataset.wid = w.id;
             card.innerHTML = renderWidget(w);
             bindWidgetEvents(card, w);
+
             if (editMode) {
+                // delete button
                 const del = document.createElement('button');
                 del.className = 'ctrl-del-btn';
                 del.title = 'Удалить';
                 del.textContent = '×';
                 del.addEventListener('click', () => { removeWidget(w.id); });
                 card.appendChild(del);
+
+                // drag-and-drop
+                card.draggable = true;
+                card.addEventListener('dragstart', e => {
+                    dragSrc = w.id;
+                    e.dataTransfer.effectAllowed = 'move';
+                    card.classList.add('ctrl-dragging');
+                });
+                card.addEventListener('dragend', () => {
+                    card.classList.remove('ctrl-dragging');
+                    grid.querySelectorAll('.ctrl-drag-over').forEach(el => el.classList.remove('ctrl-drag-over'));
+                });
+                card.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    card.classList.add('ctrl-drag-over');
+                });
+                card.addEventListener('dragleave', () => card.classList.remove('ctrl-drag-over'));
+                card.addEventListener('drop', e => {
+                    e.preventDefault();
+                    card.classList.remove('ctrl-drag-over');
+                    if (dragSrc && dragSrc !== w.id) {
+                        const fi = widgets.findIndex(x => x.id === dragSrc);
+                        const ti = widgets.findIndex(x => x.id === w.id);
+                        if (fi !== -1 && ti !== -1) {
+                            const [moved] = widgets.splice(fi, 1);
+                            widgets.splice(ti, 0, moved);
+                            save();
+                            render();
+                        }
+                    }
+                });
             }
+
             grid.appendChild(card);
         }
     }
 
     function renderWidget(w) {
         const val = getTagValue(w.tag) ?? '—';
-        const isBool = val === '1' || val === '0' || val === true || val === false;
         const isOn = val === '1' || val === true;
         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
         const header = `<div class="ctrl-w-label">${esc(w.label || w.tag)}</div>
                         <div class="ctrl-w-tag muted">${esc(w.tag)}</div>`;
 
+        function indicatorHtml() {
+            if (!w.indicatorTag) return '';
+            const iv = getTagValue(w.indicatorTag) ?? '—';
+            const iOn = iv === '1' || iv === true;
+            return `<div class="ctrl-ind-secondary ${iOn ? 'on' : 'off'}" data-ind-tag="${esc(w.indicatorTag)}">
+                <div class="ctrl-indicator-bulb"></div>
+                <div class="ctrl-indicator-val">${iOn ? 'ВКЛ' : 'ВЫКЛ'}</div>
+            </div>`;
+        }
+
         switch (w.type) {
+            case 'section':
+                return `<div class="ctrl-section-header">${esc(w.label || 'Секция')}</div>`;
+
             case 'momentary_button':
                 return `${header}<button class="ctrl-btn ctrl-momentary"
                     data-tag="${esc(w.tag)}"
@@ -102,13 +152,13 @@ window.ControlPanel = (() => {
                     onmouseleave="ControlPanel._mup('${esc(w.tag)}',this)"
                     ontouchstart="ControlPanel._mdown('${esc(w.tag)}',this)"
                     ontouchend="ControlPanel._mup('${esc(w.tag)}',this)"
-                    ontouchcancel="ControlPanel._mup('${esc(w.tag)}',this)">▶ ПУСК</button>`;
+                    ontouchcancel="ControlPanel._mup('${esc(w.tag)}',this)">▶ ПУСК</button>${indicatorHtml()}`;
 
             case 'maintained_button':
                 return `${header}<button class="ctrl-btn ctrl-maintained ${isOn ? 'active' : ''}"
                     data-tag="${esc(w.tag)}"
                     onclick="ControlPanel._toggle('${esc(w.tag)}',this)"
-                    >${isOn ? '● ВКЛ' : '○ ВЫКЛ'}</button>`;
+                    >${isOn ? '● ВКЛ' : '○ ВЫКЛ'}</button>${indicatorHtml()}`;
 
             case 'indicator':
                 return `${header}<div class="ctrl-indicator ${isOn ? 'on' : 'off'}" data-tag="${esc(w.tag)}">
@@ -150,7 +200,6 @@ window.ControlPanel = (() => {
         const cur = getTagValue(tag);
         const next = (cur === '1' || cur === true) ? '0' : '1';
         write(tag, next);
-        // optimistic UI
         setTimeout(updateValues, 50);
     }
     function _writeForm(tag, form) {
@@ -166,6 +215,7 @@ window.ControlPanel = (() => {
         const grid = document.getElementById('ctrlGrid');
         if (!grid) return;
         for (const w of widgets) {
+            if (w.type === 'section') continue;
             const card = grid.querySelector(`[data-wid="${w.id}"]`);
             if (!card) continue;
             const val = getTagValue(w.tag) ?? '—';
@@ -189,6 +239,19 @@ window.ControlPanel = (() => {
                 const disp = card.querySelector('.ctrl-num-display');
                 if (disp) disp.textContent = val;
             }
+
+            // secondary indicator for button cards
+            if (w.indicatorTag && BUTTON_TYPES.has(w.type)) {
+                const iv = getTagValue(w.indicatorTag) ?? '—';
+                const iOn = iv === '1' || iv === true;
+                const ind = card.querySelector('.ctrl-ind-secondary');
+                if (ind) {
+                    ind.classList.toggle('on', iOn);
+                    ind.classList.toggle('off', !iOn);
+                    const v = ind.querySelector('.ctrl-indicator-val');
+                    if (v) v.textContent = iOn ? 'ВКЛ' : 'ВЫКЛ';
+                }
+            }
         }
     }
 
@@ -197,8 +260,17 @@ window.ControlPanel = (() => {
         const type = document.getElementById('ctrlWType').value;
         const label = document.getElementById('ctrlWLabel').value.trim();
         const tag = document.getElementById('ctrlWTag').value;
-        if (!tag) { alert('Выберите тег'); return; }
-        widgets.push({ id: uid(), type, label: label || tag, tag });
+
+        if (type !== 'section' && !tag) { alert('Выберите тег'); return; }
+
+        const w = { id: uid(), type, label: label || (type === 'section' ? 'Секция' : tag), tag: tag || '' };
+
+        if (BUTTON_TYPES.has(type)) {
+            const indTag = document.getElementById('ctrlWIndicatorTag')?.value;
+            if (indTag) w.indicatorTag = indTag;
+        }
+
+        widgets.push(w);
         save();
         render();
     }
@@ -216,19 +288,40 @@ window.ControlPanel = (() => {
 
     function populateTagSelect() {
         const sel = document.getElementById('ctrlWTag');
+        const indSel = document.getElementById('ctrlWIndicatorTag');
         if (!sel) return;
         const favOnly = document.getElementById('ctrlFavOnly')?.checked;
         const favs = favOnly ? getFavs() : null;
         const tags = availableTags().filter(t => !favs || favs.has(t.name));
         if (!tags.length) {
-            sel.innerHTML = favOnly
+            const msg = favOnly
                 ? '<option value="">— нет избранных тегов —</option>'
                 : '<option value="">— нет тегов (подключитесь к ПЛК) —</option>';
+            sel.innerHTML = msg;
+            if (indSel) indSel.innerHTML = '<option value="">— нет —</option>';
             return;
         }
-        sel.innerHTML = tags.map(t =>
+        const opts = tags.map(t =>
             `<option value="${t.name.replace(/"/g,'&quot;')}">${t.name} (${t.type})</option>`
         ).join('');
+        sel.innerHTML = opts;
+        if (indSel) indSel.innerHTML = '<option value="">— нет —</option>' + opts;
+    }
+
+    // show/hide tag & indicator fields based on selected type
+    function onTypeChange() {
+        const type = document.getElementById('ctrlWType')?.value;
+        const tagLabel = document.getElementById('ctrlTagLabel');
+        const tagSel = document.getElementById('ctrlWTag');
+        const indLabel = document.getElementById('ctrlIndTagLabel');
+        const indSel = document.getElementById('ctrlWIndicatorTag');
+        const isSection = type === 'section';
+        const isButton = BUTTON_TYPES.has(type);
+
+        if (tagLabel) tagLabel.style.display = isSection ? 'none' : '';
+        if (tagSel)   tagSel.style.display   = isSection ? 'none' : '';
+        if (indLabel) indLabel.style.display = isButton ? '' : 'none';
+        if (indSel)   indSel.style.display   = isButton ? '' : 'none';
     }
 
     // ── edit mode toggle ──────────────────────────────────────────────────────
@@ -238,7 +331,7 @@ window.ControlPanel = (() => {
         const form = document.getElementById('ctrlEditForm');
         if (btn) btn.textContent = editMode ? '✔ Режим просмотра' : '✎ Режим правки';
         if (form) form.style.display = editMode ? 'block' : 'none';
-        if (editMode) populateTagSelect();
+        if (editMode) { populateTagSelect(); onTypeChange(); }
         render();
     }
 
@@ -253,6 +346,7 @@ window.ControlPanel = (() => {
         document.getElementById('ctrlModeBtn')?.addEventListener('click', toggleEditMode);
         document.getElementById('ctrlAddWidgetBtn')?.addEventListener('click', addWidget);
         document.getElementById('ctrlFavOnly')?.addEventListener('change', populateTagSelect);
+        document.getElementById('ctrlWType')?.addEventListener('change', onTypeChange);
     }
 
     return { init, onShow, updateValues, _mdown, _mup, _toggle, _write: _writeForm };
