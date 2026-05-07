@@ -232,7 +232,7 @@ window.Diagnostics = (() => {
             const safeKey = ea(modKey);
 
             html += `<div class="io-mod-card">
-                <div class="io-mod-header" onclick="Diagnostics._ioToggle(${JSON.stringify(modKey)})">
+                <div class="io-mod-header" onclick="Diagnostics._ioToggle('${ea(modKey)}')">
                     <span class="io-mod-slot">${title}</span>
                     <span class="io-mod-badges">${badges.join(' ')}</span>
                     <span class="io-mod-chevron">${isExp ? '▲' : '▼'}</span>

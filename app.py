@@ -425,20 +425,40 @@ def parse_channel_count(dtype: str) -> int:
             return n
     return 1
 
-def try_read_channel_data(plc, base_tag: str, ch_count: int):
-    """Try various patterns to read discrete channel bits. Returns list of values or Nones."""
-    # Pattern 1: base.Data as DINT bitmask
+def get_channel_tags_and_values(plc, base_tag: str, ch_count: int):
+    """Read per-channel values; return (values, tag_per_channel).
+
+    Tries in order:
+      1. PtXX.Data  — AB 5069/5000 series
+      2. .Data DINT bitmask
+      3. .0 .1 ... individual bit members
+    """
+    # Pattern 1: Pt00.Data ... Pt(N-1).Data
+    r0 = plc.Read(f"{base_tag}.Pt00.Data")
+    if r0.Status == "Success":
+        vals = []
+        tags = []
+        for i in range(ch_count):
+            tag = f"{base_tag}.Pt{i:02d}.Data"
+            r = plc.Read(tag)
+            tags.append(tag)
+            vals.append((1 if r.Value else 0) if r.Status == "Success" and r.Value is not None else None)
+        return vals, tags
+
+    default_tags = [f"{base_tag}.{i}" for i in range(ch_count)]
+
+    # Pattern 2: .Data as DINT bitmask
     try:
         r = plc.Read(f"{base_tag}.Data")
         if r.Status == "Success" and r.Value is not None and isinstance(r.Value, (int, bool)):
             int_val = int(r.Value)
             if int_val < 0:
                 int_val = (1 << 32) + int_val
-            return [(int_val >> i) & 1 for i in range(ch_count)]
+            return [(int_val >> i) & 1 for i in range(ch_count)], default_tags
     except Exception:
         pass
 
-    # Pattern 2: individual bit members base.0 .. base.N
+    # Pattern 3: individual bit members
     vals = []
     any_ok = False
     for i in range(ch_count):
@@ -451,10 +471,7 @@ def try_read_channel_data(plc, base_tag: str, ch_count: int):
         except Exception:
             pass
         vals.append(None)
-    if any_ok:
-        return vals
-
-    return [None] * ch_count
+    return vals if any_ok else [None] * ch_count, default_tags
 
 def scan_io_modules(plc, tag_structure: dict):
     """Build I/O module list from known MODULE/IO tags in tag_structure."""
@@ -494,18 +511,18 @@ def scan_io_modules(plc, tag_structure: dict):
                     continue
                 mod['has_input'] = True
                 mod['input_type'] = dtype
-                values = try_read_channel_data(plc, tag_full, ch_count)
+                values, ch_tags = get_channel_tags_and_values(plc, tag_full, ch_count)
                 mod['inputs'] = [
-                    {'channel': i, 'tag': f"{tag_full}.{i}", 'value': values[i]}
+                    {'channel': i, 'tag': ch_tags[i], 'value': values[i]}
                     for i in range(ch_count)
                 ]
 
             elif dir_char == 'O':
                 mod['has_output'] = True
                 mod['output_type'] = dtype
-                values = try_read_channel_data(plc, tag_full, ch_count)
+                values, ch_tags = get_channel_tags_and_values(plc, tag_full, ch_count)
                 mod['outputs'] = [
-                    {'channel': i, 'tag': f"{tag_full}.{i}", 'value': values[i]}
+                    {'channel': i, 'tag': ch_tags[i], 'value': values[i]}
                     for i in range(ch_count)
                 ]
 
