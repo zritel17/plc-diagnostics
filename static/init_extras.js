@@ -38,7 +38,7 @@
 
     // ── TAB MANAGEMENT ────────────────────────────────────────────────────────
     function showOnly(viewId) {
-        ['plcView', 'collectorView', 'dashboardsView', 'controlView', 'recipesView'].forEach(id => {
+        ['plcView', 'collectorView', 'dashboardsView', 'controlView', 'recipesView', 'aiView'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = (id === viewId) ? 'flex' : 'none';
         });
@@ -107,6 +107,15 @@
                 if (window.Recipes) Recipes.onShow();
             });
         }
+
+        const aiTab = document.querySelector('.tab[data-tab="ai"]');
+        if (aiTab) {
+            aiTab.addEventListener('click', () => {
+                document.body.classList.add('no-left');
+                showOnly('aiView');
+                if (window.AIAnalytics) AIAnalytics.onShow();
+            });
+        }
     }
 
     function initModules() {
@@ -116,6 +125,7 @@
         try { if (window.ControlPanel) ControlPanel.init(); } catch (e) { console.error('ControlPanel.init', e); }
         try { if (window.Diagnostics)  Diagnostics.init();  } catch (e) { console.error('Diagnostics.init', e); }
         try { if (window.Recipes)      Recipes.init();      } catch (e) { console.error('Recipes.init', e); }
+        try { if (window.AIAnalytics)  AIAnalytics.init();  } catch (e) { console.error('AIAnalytics.init', e); }
     }
 
     // ── WEBSOCKET ─────────────────────────────────────────────────────────────

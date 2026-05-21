@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PLC Edge Gateway — Allen-Bradley</title>
-    <link rel="stylesheet" href="/static/styles.css?v=19">
+    <link rel="stylesheet" href="/static/styles.css?v=23">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -26,6 +26,7 @@
             <div class="tab" data-tab="dashboards">Дашборды</div>
             <div class="tab" data-tab="collector">Теги</div>
             <div class="tab" data-tab="recipes">Рецепты</div>
+            <div class="tab" data-tab="ai">ИИ-анализ</div>
         </nav>
 
         <div class="pkl-sidebar-footer">
@@ -71,6 +72,7 @@
                                 <label>Slot</label>
                                 <input type="number" id="slotInput" value="0" min="0" max="15" style="width:70px;" />
                                 <button class="btn" id="connectBtn">Подключить</button>
+                                <button class="btn btn-emulator" id="emulatorBtn" title="Подключить эмулятор ПЛК (3 синтетических тега)">Эмулятор</button>
                                 <label class="checkbox-label" style="white-space:nowrap; margin-left:4px;">
                                     <input type="checkbox" id="autoConnectCheck" /> Авто-подключение
                                 </label>
@@ -275,6 +277,7 @@
                                 </select>
                                 <label>Период</label>
                                 <select id="widRange">
+                                    <option value="realtime">Реальное время</option>
                                     <option value="-15m">15 мин</option>
                                     <option value="-1h" selected>1 час</option>
                                     <option value="-6h">6 часов</option>
@@ -289,6 +292,7 @@
                                     <option value="min">min</option>
                                     <option value="max">max</option>
                                     <option value="last">last</option>
+                                    <option value="sum">sum</option>
                                 </select>
                                 <button class="btn" id="widAddBtn">+ Добавить</button>
                             </div>
@@ -300,6 +304,49 @@
 
                 <!-- Recipes (UDT) -->
                 <div id="recipesView" class="full-view" style="display:none;"></div>
+
+                <!-- AI Analytics -->
+                <div id="aiView" class="full-view" style="display:none;">
+                    <div class="card" style="flex-shrink:0;">
+                        <div class="card-title">ИИ-анализ данных ПЛК</div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <label>Период</label>
+                                <select id="aiTimeRange">
+                                    <option value="-1h">1 час</option>
+                                    <option value="-8h" selected>8 часов</option>
+                                    <option value="-24h">24 часа</option>
+                                    <option value="-7d">7 дней</option>
+                                </select>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="aiFavOnly" /> ★ Только избранные
+                                </label>
+                            </div>
+                            <div class="card-actions" style="margin-top:10px;">
+                                <button class="btn" id="aiAnomaliesBtn">⚡ Аномалии</button>
+                                <button class="btn btn-secondary" id="aiDiagnosticsBtn">Диагностика</button>
+                                <button class="btn btn-secondary" id="aiReportBtn">Отчёт</button>
+                                <button class="btn btn-secondary btn-small" id="aiStopBtn" style="display:none;">✕ Стоп</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" id="aiResultCard" style="display:none;">
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span id="aiResultTitle">Результат</span>
+                            <button class="btn btn-secondary btn-small" id="aiCopyBtn">Копировать</button>
+                        </div>
+                        <div class="card-body">
+                            <div id="aiOutput" style="white-space:pre-wrap; font-size:13px; line-height:1.7; min-height:60px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="card" id="aiStatusCard" style="display:none;">
+                        <div class="card-body">
+                            <div id="aiStatusMsg" style="font-size:13px; color:var(--fg-muted);"></div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- app.js compat elements (hidden) -->
                 <div id="tagsView" style="display:none; flex-direction:column; gap:12px;">
@@ -319,13 +366,14 @@
     </div><!-- .pkl-main -->
 </div><!-- .pkl-app -->
 
-    <script src="/static/app.js?v=19"></script>
-    <script src="/static/collector.js?v=19"></script>
-    <script src="/static/config.js?v=19"></script>
-    <script src="/static/dashboard.js?v=19"></script>
-    <script src="/static/control.js?v=19"></script>
-    <script src="/static/diagnostics.js?v=19"></script>
-    <script src="/static/recipes.js?v=19"></script>
-    <script src="/static/init_extras.js?v=19"></script>
+    <script src="/static/app.js?v=22"></script>
+    <script src="/static/collector.js?v=22"></script>
+    <script src="/static/config.js?v=22"></script>
+    <script src="/static/dashboard.js?v=22"></script>
+    <script src="/static/control.js?v=22"></script>
+    <script src="/static/diagnostics.js?v=22"></script>
+    <script src="/static/recipes.js?v=22"></script>
+    <script src="/static/ai.js?v=23"></script>
+    <script src="/static/init_extras.js?v=23"></script>
 </body>
 </html>

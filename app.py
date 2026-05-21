@@ -17,7 +17,7 @@ load_dotenv()
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from pylogix import PLC
 from sqlalchemy import select, delete
@@ -139,6 +139,13 @@ last_update = None
 _plc_lock = asyncio.Lock()   # kept for legacy; no longer used by bg reader
 _tags_cache = None            # последний успешный ответ /api/tags
 _io_cache = None              # последний успешный ответ /api/io
+
+_emulator_mode = False
+_emulator_values: dict = {}
+
+class _EmulatorPLC:
+    """Sentinel object that replaces real PLC when emulator is active."""
+    def Close(self): pass
 
 TIMER_FIELDS = [
     {'name': 'PRE', 'type': 'DINT', 'desc': 'Предустановка'},
@@ -347,7 +354,8 @@ async def auth_check():
 
 @app.post("/api/connect")
 async def connect(request: PLCConnectRequest):
-    global current_plc, _write_plc, current_ip, current_slot, all_tags_raw, tag_structure, io_modules, _tags_cache, _io_cache
+    global current_plc, _write_plc, current_ip, current_slot, all_tags_raw, tag_structure, io_modules, _tags_cache, _io_cache, _emulator_mode
+    _emulator_mode = False
     _tags_cache = None
     _io_cache = None
 
@@ -358,12 +366,12 @@ async def connect(request: PLCConnectRequest):
         raise HTTPException(status_code=400, detail="IP адрес не может быть пустым")
 
     try:
-        if current_plc:
+        if current_plc and not isinstance(current_plc, _EmulatorPLC):
             try:
                 current_plc.Close()
             except:
                 pass
-        if _write_plc:
+        if _write_plc and not isinstance(_write_plc, _EmulatorPLC):
             try:
                 _write_plc.Close()
             except:
@@ -490,14 +498,15 @@ async def connect(request: PLCConnectRequest):
 
 @app.post("/api/disconnect")
 async def disconnect():
-    global current_plc, _write_plc, current_ip, current_slot, all_tags_raw, tag_structure, io_modules
+    global current_plc, _write_plc, current_ip, current_slot, all_tags_raw, tag_structure, io_modules, _emulator_mode, _tags_cache, _io_cache
 
-    if current_plc:
+    _emulator_mode = False
+    if current_plc and not isinstance(current_plc, _EmulatorPLC):
         try:
             current_plc.Close()
         except:
             pass
-    if _write_plc:
+    if _write_plc and not isinstance(_write_plc, _EmulatorPLC):
         try:
             _write_plc.Close()
         except:
@@ -509,8 +518,60 @@ async def disconnect():
     all_tags_raw = []
     tag_structure = {}
     io_modules = []
+    _tags_cache = None
+    _io_cache = None
 
     return {"status": "disconnected"}
+
+@app.post("/api/emulator/connect")
+async def emulator_connect():
+    global current_plc, _write_plc, current_ip, current_slot
+    global all_tags_raw, tag_structure, io_modules
+    global _emulator_mode, _emulator_values, _tags_cache, _io_cache
+
+    # Close any real PLC connection first
+    _emulator_mode = False
+    if current_plc and not isinstance(current_plc, _EmulatorPLC):
+        try: current_plc.Close()
+        except: pass
+    if _write_plc and not isinstance(_write_plc, _EmulatorPLC):
+        try: _write_plc.Close()
+        except: pass
+
+    tag_structure = {
+        'BOOL': [{'name': 'EMU_BOOL', 'type': 'BOOL'}],
+        'DINT': [{'name': 'EMU_DINT', 'type': 'DINT'}],
+        'REAL': [{'name': 'EMU_REAL', 'type': 'REAL'}],
+        'SINT': [], 'INT': [], 'LINT': [], 'STRING': [], 'TIMER': [], 'COUNTER': [],
+        'BOOL_ARRAY': [], 'SINT_ARRAY': [], 'INT_ARRAY': [],
+        'DINT_ARRAY': [], 'LINT_ARRAY': [], 'REAL_ARRAY': [],
+        'STRING_ARRAY': [], 'TIMER_ARRAY': [], 'COUNTER_ARRAY': [],
+        'UDT_ARRAY': [], 'UDT': [], 'IO': [], 'MODULE': []
+    }
+    all_tags_raw = [
+        {'name': 'EMU_BOOL', 'type': 'BOOL'},
+        {'name': 'EMU_DINT', 'type': 'DINT'},
+        {'name': 'EMU_REAL', 'type': 'REAL'},
+    ]
+    _emulator_values = {'EMU_BOOL': 0, 'EMU_DINT': 0, 'EMU_REAL': 0.0}
+    io_modules = []
+    current_plc = _EmulatorPLC()
+    _write_plc = _EmulatorPLC()
+    current_ip = "EMULATOR"
+    current_slot = 0
+    _tags_cache = None
+    _io_cache = []
+
+    _emulator_mode = True
+    asyncio.create_task(_emulator_bg_tick())
+
+    return {
+        "status": "connected",
+        "ip": "EMULATOR",
+        "slot": 0,
+        "tag_count": 3,
+        "io_count": 0,
+    }
 
 def parse_channel_count(dtype: str) -> int:
     """Extract channel count from AB module type. AB:5000_DI16:I:0 → 16"""
@@ -723,6 +784,9 @@ async def _plc_bg_reader():
     """Фоновый task: batch-читает теги и IO каждые 500 мс, кладёт в кэш."""
     global _tags_cache, _io_cache, last_update
     while not (shutdown_event and shutdown_event.is_set()):
+        if _emulator_mode:
+            await asyncio.sleep(0.5)
+            continue
         if current_plc and all_tags_raw:
             try:
                 raw = await asyncio.to_thread(_sync_batch_read_tags)
@@ -738,6 +802,40 @@ async def _plc_bg_reader():
             except Exception as e:
                 print(f"[BG] io: {e}")
         await asyncio.sleep(0.5)
+
+async def _emulator_bg_tick():
+    """Генерирует синтетические значения тегов в режиме эмулятора."""
+    global _tags_cache, _io_cache, _emulator_values, last_update
+    tick = 0
+    bool_state = 0
+    dint_val = 0
+    dint_dir = 1
+    real_val = 0.0
+    real_dir = 1
+    while _emulator_mode and not (shutdown_event and shutdown_event.is_set()):
+        tick += 1
+        if tick % 10 == 0:
+            bool_state = 1 - bool_state
+        dint_val += dint_dir
+        if dint_val >= 100:
+            dint_dir = -1
+        elif dint_val <= 0:
+            dint_dir = 1
+        real_val = round(real_val + real_dir * 0.25, 2)
+        if real_val >= 100.0:
+            real_dir = -1
+        elif real_val <= 0.0:
+            real_dir = 1
+        _emulator_values = {
+            'EMU_BOOL': bool_state,
+            'EMU_DINT': dint_val,
+            'EMU_REAL': real_val,
+        }
+        ts = datetime.now().isoformat()
+        _tags_cache = {"tags": _build_tags_result(_emulator_values), "last_update": ts}
+        _io_cache = []
+        last_update = ts
+        await asyncio.sleep(0.1)
 
 @app.get("/api/tags")
 async def get_tags():
@@ -777,6 +875,10 @@ async def write_tag(request: WriteTagRequest):
             else:
                 value = tag_value
 
+        if _emulator_mode:
+            _emulator_values[tag_name] = value
+            return {"status": "success", "tag": tag_name, "value": str(value)}
+
         async with _write_lock:
             response = await asyncio.to_thread(plc.Write, tag_name, value)
 
@@ -801,7 +903,10 @@ async def get_status():
     
     if not current_plc:
         return {"status": "offline", "ip": None, "slot": None}
-    
+
+    if _emulator_mode:
+        return {"status": "online", "ip": current_ip, "slot": current_slot, "last_update": last_update}
+
     try:
         if all_tags_raw:
             current_plc.Read(all_tags_raw[0]['name'])
@@ -1175,6 +1280,141 @@ async def log_recipe_changes(tag_name: str, payload: RecipeChangesPayload):
             ))
         await s.commit()
     return {"status": "ok", "logged": len(payload.changes)}
+
+
+# ============================================================================
+# AI Analytics (Ollama)
+# ============================================================================
+
+OLLAMA_URL  = os.getenv("OLLAMA_URL", "http://localhost:11434")
+AI_MODEL    = os.getenv("AI_MODEL", "phi3:mini")
+
+_SYSTEM_PROMPT = (
+    "Ты эксперт по промышленной автоматизации, анализируешь данные Allen-Bradley ControlLogix ПЛК. "
+    "Отвечай на русском языке. Будь конкретен и практичен. Используй инженерную терминологию. "
+    "Формат ответа: краткие пункты. Критичные проблемы выдели в начале списка."
+)
+
+_ANALYSIS_INTROS = {
+    "anomalies":   "Проанализируй данные тегов ПЛК и выяви аномалии, выбросы и отклонения от нормы. "
+                   "Укажи конкретные теги с проблемами и рекомендуй действия.\n\n",
+    "diagnostics": "Проведи диагностику оборудования по данным тегов ПЛК. "
+                   "Определи потенциальные проблемы, тенденции к ухудшению и рекомендации по профилактике.\n\n",
+    "report":      "Составь сводный отчёт по работе оборудования за указанный период на основе данных тегов ПЛК. "
+                   "Укажи: время работы в норме, выявленные отклонения, экстремальные значения.\n\n",
+}
+
+
+def _build_context_text(tag_stats: dict, current_values: dict) -> str:
+    lines = []
+    for tag_name, s in tag_stats.items():
+        if not s:
+            continue
+        cur = current_values.get(tag_name)
+        parts = [f"Тег: {tag_name}"]
+        if "mean" in s:
+            parts.append(f"среднее={s['mean']:.3g}")
+        if "min" in s:
+            parts.append(f"мин={s['min']:.3g}")
+        if "max" in s:
+            parts.append(f"макс={s['max']:.3g}")
+        if cur is not None:
+            parts.append(f"текущее={cur}")
+            if "mean" in s and "min" in s and "max" in s:
+                spread = s["max"] - s["min"]
+                if spread > 0:
+                    try:
+                        cur_f = float(cur)
+                        threshold = s["mean"] + 2 * (spread / 4)
+                        if cur_f > threshold or cur_f < s["mean"] - 2 * (spread / 4):
+                            parts.append("⚠ АНОМАЛИЯ")
+                    except (ValueError, TypeError):
+                        pass
+        lines.append(", ".join(parts))
+    return "\n".join(lines) if lines else "Данные в InfluxDB отсутствуют."
+
+
+@app.get("/api/ai/analyze/stream")
+async def ai_analyze_stream(
+    analysis_type: str = Query("anomalies"),
+    time_range:    str = Query("-8h"),
+    tags:          str = Query(""),
+    token:         str = Query(""),
+):
+    if not _valid_token(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    requested_tags = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+
+    # Gather InfluxDB stats
+    available_tags = influx.list_tags_with_data() if influx.available else []
+    if requested_tags:
+        selected = [t for t in requested_tags if t in available_tags] or available_tags[:20]
+    else:
+        selected = available_tags[:20]
+
+    tag_stats: dict = {}
+    for tag_name in selected:
+        tag_stats[tag_name] = influx.stats(tag_name, frm=time_range)
+
+    # Get current PLC values from cache
+    current_values: dict = {}
+    if _tags_cache and "tags" in _tags_cache:
+        for cat_tags in _tags_cache["tags"].values():
+            if isinstance(cat_tags, list):
+                for entry in cat_tags:
+                    if isinstance(entry, dict) and "name" in entry:
+                        current_values[entry["name"]] = entry.get("value")
+
+    context_text = _build_context_text(tag_stats, current_values)
+    intro = _ANALYSIS_INTROS.get(analysis_type, _ANALYSIS_INTROS["anomalies"])
+    user_prompt = intro + f"Данные тегов (период {time_range}):\n{context_text}"
+
+    async def generate():
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                async with client.stream(
+                    "POST",
+                    f"{OLLAMA_URL}/api/chat",
+                    json={
+                        "model": AI_MODEL,
+                        "messages": [
+                            {"role": "system", "content": _SYSTEM_PROMPT},
+                            {"role": "user",   "content": user_prompt},
+                        ],
+                        "stream": True,
+                    },
+                ) as resp:
+                    if resp.status_code != 200:
+                        yield f"data: [ERROR] Ollama вернул {resp.status_code}\n\n"
+                        return
+                    async for line in resp.aiter_lines():
+                        if not line:
+                            continue
+                        try:
+                            chunk = json.loads(line)
+                            content = chunk.get("message", {}).get("content", "")
+                            if content:
+                                yield f"data: {content}\n\n"
+                            if chunk.get("done"):
+                                break
+                        except json.JSONDecodeError:
+                            pass
+        except httpx.ConnectError:
+            yield f"data: [ERROR] Ollama недоступен ({OLLAMA_URL}). Запустите: sudo systemctl start ollama\n\n"
+        except Exception as e:
+            yield f"data: [ERROR] {e}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ============================================================================

@@ -17,6 +17,7 @@ const el = id => document.getElementById(id);
 const ipInput = el('ipInput');
 const slotInput = el('slotInput');
 const connectBtn = el('connectBtn');
+const emulatorBtn = el('emulatorBtn');
 const tagTree = el('tagTree');
 const ioContainer = el('ioContainer');
 const statusBadge = el('statusBadge');
@@ -35,6 +36,7 @@ const placeholder = el('placeholder');
 function $on(elem, ev, fn) { if (elem) elem.addEventListener(ev, fn); }
 
 $on(connectBtn, 'click', toggleConnection);
+$on(emulatorBtn, 'click', toggleEmulator);
 $on(searchInput, 'input', e => { searchFilter = e.target.value.toLowerCase(); needsFullRender = true; render(); });
 $on(typeSelect, 'change', e => { typeFilter = e.target.value; needsFullRender = true; render(); });
 $on(expandAllBtn, 'click', () => expandAll(true));
@@ -213,6 +215,10 @@ async function disconnect() {
     updateStatus('offline');
     connectBtn.textContent = 'Подключить';
     connectBtn.classList.remove('btn-danger');
+    if (emulatorBtn) {
+        emulatorBtn.textContent = 'Эмулятор';
+        emulatorBtn.classList.remove('active', 'btn-danger');
+    }
     tagsData = {};
     ioData = [];
     selectedTag = null;
@@ -221,6 +227,45 @@ async function disconnect() {
     needsFullRender = true;
     render();
     showAlert('Отключено', 'success');
+}
+
+async function toggleEmulator() {
+    if (isConnected) { await disconnect(); return; }
+    await connectEmulator();
+}
+
+async function connectEmulator() {
+    if (emulatorBtn) { emulatorBtn.disabled = true; emulatorBtn.textContent = '⏳'; }
+    if (connectBtn) connectBtn.disabled = true;
+
+    try {
+        const r = await fetch(`${API_BASE}/api/emulator/connect`, { method: 'POST' });
+        if (r.ok) {
+            const data = await r.json();
+            showAlert(`✅ Эмулятор: ${data.tag_count} тега`, 'success');
+            updateStatus('online', 'EMULATOR', 0);
+            isConnected = true;
+            connectBtn.textContent = 'Отключить';
+            connectBtn.classList.add('btn-danger');
+            if (emulatorBtn) {
+                emulatorBtn.textContent = 'Отключить';
+                emulatorBtn.classList.add('active', 'btn-danger');
+            }
+            needsFullRender = true;
+            await loadTags();
+            await loadIO();
+            startAutoRefresh();
+        } else {
+            const err = await r.json();
+            showAlert(`Ошибка эмулятора: ${err.detail}`, 'error');
+        }
+    } catch (e) {
+        showAlert(`Ошибка: ${e.message}`, 'error');
+    } finally {
+        if (emulatorBtn) emulatorBtn.disabled = false;
+        if (connectBtn) connectBtn.disabled = false;
+        if (!isConnected && emulatorBtn) emulatorBtn.textContent = 'Эмулятор';
+    }
 }
 
 // ========== ЗАГРУЗКА ==========

@@ -272,6 +272,21 @@ body {
 .btn:hover:not(:disabled) { opacity: 0.80; }
 .btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .btn-danger { background: var(--dot-error); }
+.btn-emulator {
+  background: transparent;
+  color: #a78bfa;
+  border: 1px solid #7c3aed;
+}
+.btn-emulator:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.15);
+  color: #c4b5fd;
+  border-color: #a78bfa;
+}
+.btn-emulator.active {
+  background: rgba(124, 58, 237, 0.25);
+  color: #c4b5fd;
+  border-color: #a78bfa;
+}
 .btn-secondary {
   background: transparent;
   color: var(--fg-muted);
@@ -1098,4 +1113,60 @@ body.no-left .right-panel { padding: 0; }
   .pkl-app { grid-template-columns: 1fr; }
   .pkl-sidebar { display: none; }
   .left-panel { width: 100%; max-height: 45%; border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* =====================================================================
+   EMBEDDED / TOUCHSCREEN MODE — Raspberry Pi 7" Touch Display 2 (1280×720)
+   Applied by plc_app.py via JS injection: document.body.classList.add('embedded')
+   ===================================================================== */
+body.embedded {
+  font-size: 15px;
+}
+
+body.embedded .tab {
+  height: 44px;
+  font-size: 15px;
+  padding: 0 10px 0 18px;
+}
+
+body.embedded .btn {
+  padding: 11px 18px;
+  font-size: 13px;
+  min-height: 44px;
+}
+body.embedded .btn-small {
+  padding: 9px 14px;
+  min-height: 40px;
+}
+
+body.embedded input[type="text"],
+body.embedded input[type="number"],
+body.embedded input[type="password"],
+body.embedded select {
+  padding: 10px 12px;
+  font-size: 14px;
+  min-height: 44px;
+}
+
+body.embedded .data-table td,
+body.embedded .data-table th {
+  padding: 10px 12px;
+}
+
+body.embedded .tree-row {
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+body.embedded .bool-btn,
+body.embedded .action-btn {
+  padding: 6px 12px;
+  font-size: 11px;
+  min-height: 36px;
+}
+
+body.embedded .modal {
+  width: 98vw;
+  max-width: 98vw;
+  max-height: 95vh;
 }

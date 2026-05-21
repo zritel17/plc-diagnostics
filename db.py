@@ -227,7 +227,7 @@ class InfluxClient:
 
         # Защита от слишком большого результата: aggregateWindow если задан agg
         agg_clause = ""
-        if agg in ("mean", "min", "max", "last", "first"):
+        if agg in ("mean", "min", "max", "last", "first", "sum"):
             agg_clause = f'  |> aggregateWindow(every: 1m, fn: {agg}, createEmpty: false)\n'
 
         flux = (

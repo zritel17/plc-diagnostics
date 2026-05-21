@@ -6,7 +6,16 @@ window.Dashboards = (() => {
     let dashboards = [];
     let current = null;
     let widgetCharts = new Map();
+    let realtimeIntervals = new Map();
     let availableTags = [];
+
+    const REALTIME_RANGE = '-30s';
+    const REALTIME_INTERVAL_MS = 500;
+    const DEFAULT_REFRESH_MS = 5000;
+
+    function rangeLabel(r) {
+        return r === 'realtime' ? '⚡ Реальное время' : r;
+    }
 
     async function loadList() {
         try {
@@ -157,6 +166,8 @@ window.Dashboards = (() => {
         if (!grid) return;
         widgetCharts.forEach(c => c.destroy());
         widgetCharts.clear();
+        realtimeIntervals.forEach(id => clearInterval(id));
+        realtimeIntervals.clear();
         if (!current) {
             grid.innerHTML = '<div class="muted" style="padding: 24px; text-align:center;">Нет дашбордов. Создайте новый.</div>';
             return;
@@ -171,7 +182,7 @@ window.Dashboards = (() => {
             return `<div class="widget" style="${colSpan}${minH}" data-wid="${w.id}">
                 <div class="widget-header">
                     <span class="widget-title" title="${esc(w.title || w.tag_name)}">
-                        ${esc(w.title || w.tag_name)} <span class="muted">${esc(w.time_range)}${w.aggregation ? ' · ' + esc(w.aggregation) : ''}</span>
+                        ${esc(w.title || w.tag_name)} <span class="muted">${esc(rangeLabel(w.time_range))}${w.aggregation ? ' · ' + esc(w.aggregation) : ''}</span>
                     </span>
                     <div class="widget-actions">
                         <button data-action="refresh" title="Обновить">🔄</button>
@@ -195,9 +206,25 @@ window.Dashboards = (() => {
     async function refreshWidget(w) {
         const body = document.getElementById(`wbody-${w.id}`);
         if (!body) return;
+
+        const isRealtime = w.time_range === 'realtime';
+        const effectiveRange = isRealtime ? REALTIME_RANGE : w.time_range;
+
+        // Schedule auto-refresh
+        if (!realtimeIntervals.has(w.id)) {
+            const ms = isRealtime ? REALTIME_INTERVAL_MS : DEFAULT_REFRESH_MS;
+            realtimeIntervals.set(w.id, setInterval(() => {
+                if (document.getElementById(`wbody-${w.id}`)) refreshWidget(w);
+                else {
+                    clearInterval(realtimeIntervals.get(w.id));
+                    realtimeIntervals.delete(w.id);
+                }
+            }, ms));
+        }
+
         try {
             if (w.widget_type === 'stat') {
-                const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/stats?from=${encodeURIComponent(w.time_range)}`);
+                const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/stats?from=${encodeURIComponent(effectiveRange)}`);
                 const d = await r.json();
                 const last = d.stats?.last;
                 const mean = d.stats?.mean;
@@ -209,7 +236,7 @@ window.Dashboards = (() => {
                 return;
             }
 
-            const url = `/api/data/${encodeURIComponent(w.tag_name)}/history?from=${encodeURIComponent(w.time_range)}` +
+            const url = `/api/data/${encodeURIComponent(w.tag_name)}/history?from=${encodeURIComponent(effectiveRange)}` +
                         (w.aggregation ? `&agg=${encodeURIComponent(w.aggregation)}` : '');
             const r = await fetch(url);
             const d = await r.json();

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PLC Gateway
+Comment=Allen-Bradley PLC monitoring and control
+Exec=/home/pi/plc-diagnostics/venv/bin/python3 /home/pi/plc-diagnostics/plc_app.py
+Icon=/home/pi/plc-diagnostics/static/assets/logo-glyph.svg
+Terminal=false
+Categories=Utility;
+StartupNotify=false
