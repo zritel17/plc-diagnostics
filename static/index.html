@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PLC Edge Gateway — Allen-Bradley</title>
-    <link rel="stylesheet" href="/static/styles.css?v=23">
+    <link rel="stylesheet" href="/static/styles.css?v=24">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -35,6 +35,7 @@
                 <span class="header-stat">I/O: <strong id="ioCount">0</strong></span>
                 <span class="header-stat">Collect: <strong id="collectorBadge">—</strong></span>
             </div>
+            <button class="btn btn-update btn-small" id="updateBtn" style="display:none;">Update available</button>
             <button class="btn btn-secondary btn-small" id="logoutBtn">Logout</button>
         </div>
     </aside>
@@ -366,6 +367,33 @@
     </div><!-- .pkl-main -->
 </div><!-- .pkl-app -->
 
+<!-- UPDATE MODAL -->
+<div class="modal-overlay" id="updateModal" style="display:none;">
+    <div class="modal" style="width:420px;">
+        <div class="modal-header">
+            <span>Software Update</span>
+            <button class="modal-close" id="updateModalClose">&times;</button>
+        </div>
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;font-size:13px;">
+            <div>
+                <div class="muted" style="margin-bottom:4px;">Current version</div>
+                <div id="updateCurrentHash" style="font-family:monospace;"></div>
+                <div id="updateCurrentMsg" style="color:var(--fg-muted);margin-top:2px;"></div>
+            </div>
+            <div id="updateNewRow">
+                <div class="muted" style="margin-bottom:4px;">New version</div>
+                <div id="updateNewHash" style="font-family:monospace;color:var(--accent);"></div>
+                <div id="updateNewMsg" style="color:var(--fg-muted);margin-top:2px;"></div>
+            </div>
+            <div id="updateStatusMsg" style="color:var(--fg-muted);"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary btn-small" id="updateCheckBtn">Check now</button>
+            <button class="btn btn-small" id="updateApplyBtn" style="display:none;">Apply &amp; Restart</button>
+        </div>
+    </div>
+</div>
+
     <script src="/static/app.js?v=22"></script>
     <script src="/static/collector.js?v=22"></script>
     <script src="/static/config.js?v=22"></script>
@@ -374,6 +402,6 @@
     <script src="/static/diagnostics.js?v=22"></script>
     <script src="/static/recipes.js?v=22"></script>
     <script src="/static/ai.js?v=23"></script>
-    <script src="/static/init_extras.js?v=23"></script>
+    <script src="/static/init_extras.js?v=24"></script>
 </body>
 </html>

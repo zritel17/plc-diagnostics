@@ -251,6 +251,96 @@
         });
     }
 
+    // ── UPDATE ────────────────────────────────────────────────────────────────
+    let _updateInfo = null;
+
+    function updateModalSetStatus(msg) {
+        const el = document.getElementById('updateStatusMsg');
+        if (el) el.textContent = msg;
+    }
+
+    function renderUpdateInfo(info) {
+        _updateInfo = info;
+        const hashEl   = document.getElementById('updateCurrentHash');
+        const msgEl    = document.getElementById('updateCurrentMsg');
+        const newRow   = document.getElementById('updateNewRow');
+        const newHash  = document.getElementById('updateNewHash');
+        const newMsg   = document.getElementById('updateNewMsg');
+        const applyBtn = document.getElementById('updateApplyBtn');
+        if (hashEl) hashEl.textContent = info.current_hash;
+        if (msgEl)  msgEl.textContent  = info.current_msg;
+        if (info.update_available) {
+            if (newRow)  newRow.style.display  = '';
+            if (newHash) newHash.textContent = info.new_hash || '';
+            if (newMsg)  newMsg.textContent  = info.new_msg  || '';
+            if (applyBtn) applyBtn.style.display = '';
+            updateModalSetStatus(`${info.commits_behind} new commit(s) available.`);
+        } else {
+            if (newRow)  newRow.style.display  = 'none';
+            if (applyBtn) applyBtn.style.display = 'none';
+            updateModalSetStatus('You are up to date.');
+        }
+    }
+
+    async function checkForUpdate(silent) {
+        try {
+            updateModalSetStatus('Checking…');
+            const r = await fetch('/api/update/check');
+            if (!r.ok) { updateModalSetStatus('Check failed.'); return; }
+            const info = await r.json();
+            renderUpdateInfo(info);
+            const btn = document.getElementById('updateBtn');
+            if (btn) btn.style.display = info.update_available ? '' : 'none';
+        } catch (e) {
+            if (!silent) updateModalSetStatus('Network error.');
+        }
+    }
+
+    function openUpdateModal() {
+        const modal = document.getElementById('updateModal');
+        if (modal) modal.style.display = 'flex';
+        if (_updateInfo) renderUpdateInfo(_updateInfo);
+        else checkForUpdate(false);
+    }
+
+    function closeUpdateModal() {
+        const modal = document.getElementById('updateModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    async function applyUpdate() {
+        const applyBtn = document.getElementById('updateApplyBtn');
+        const checkBtn = document.getElementById('updateCheckBtn');
+        if (applyBtn) applyBtn.disabled = true;
+        if (checkBtn) checkBtn.disabled = true;
+        updateModalSetStatus('Pulling updates…');
+        try {
+            await fetch('/api/update/apply', { method: 'POST' });
+        } catch (_) {}
+        updateModalSetStatus('Restarting server, please wait…');
+        // Poll until server comes back, then reload
+        const poll = setInterval(async () => {
+            try {
+                const r = await _origFetch('/api/auth/check', {
+                    headers: { Authorization: 'Bearer ' + token }
+                });
+                if (r.ok) { clearInterval(poll); window.location.reload(); }
+            } catch (_) {}
+        }, 2000);
+    }
+
+    function bindUpdateUI() {
+        document.getElementById('updateBtn')?.addEventListener('click', openUpdateModal);
+        document.getElementById('updateModalClose')?.addEventListener('click', closeUpdateModal);
+        document.getElementById('updateCheckBtn')?.addEventListener('click', () => checkForUpdate(false));
+        document.getElementById('updateApplyBtn')?.addEventListener('click', applyUpdate);
+        document.getElementById('updateModal')?.addEventListener('click', e => {
+            if (e.target === document.getElementById('updateModal')) closeUpdateModal();
+        });
+        // Silent background check 5 s after load
+        setTimeout(() => checkForUpdate(true), 5000);
+    }
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             bindTabs();
@@ -261,6 +351,7 @@
             bindConnectSave();
             tryAutoConnect();
             connectWs();
+            bindUpdateUI();
         });
     } else {
         bindTabs();
@@ -271,5 +362,6 @@
         bindConnectSave();
         tryAutoConnect();
         connectWs();
+        bindUpdateUI();
     }
 })();

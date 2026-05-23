@@ -536,6 +536,17 @@ body {
 }
 #logoutBtn:hover { background: var(--hover-bg); color: var(--fg); }
 
+#updateBtn {
+  font-size: 11px; padding: 5px 10px;
+  background: rgba(149,224,162,0.12); color: var(--accent-mint);
+  border: 1px solid var(--accent-mint);
+  border-radius: var(--radius-sm); cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all var(--dur) var(--ease);
+  width: 100%;
+}
+#updateBtn:hover { background: rgba(149,224,162,0.22); }
+
 /* =====================================================================
    DIAG TOOLBAR
    ===================================================================== */

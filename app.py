@@ -7,6 +7,9 @@ import asyncio
 import json
 import os
 import secrets
+import signal
+import subprocess
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional, List
@@ -14,7 +17,7 @@ from typing import Optional, List
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query, Request
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query, Request, BackgroundTasks
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -351,6 +354,62 @@ async def auth_login(body: LoginRequest):
 @app.get("/api/auth/check")
 async def auth_check():
     return {"ok": True}
+
+
+_REPO_DIR = os.path.dirname(os.path.abspath(__file__))
+
+@app.get("/api/update/check")
+async def update_check():
+    try:
+        local = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=_REPO_DIR, text=True, timeout=5
+        ).strip()
+        current_msg = subprocess.check_output(
+            ["git", "log", "-1", "--pretty=%s"], cwd=_REPO_DIR, text=True, timeout=5
+        ).strip()
+        subprocess.run(
+            ["git", "fetch", "--quiet"], cwd=_REPO_DIR, timeout=15,
+            capture_output=True
+        )
+        remote = subprocess.check_output(
+            ["git", "rev-parse", "origin/main"], cwd=_REPO_DIR, text=True, timeout=5
+        ).strip()
+        behind = int(subprocess.check_output(
+            ["git", "rev-list", "--count", f"HEAD..origin/main"],
+            cwd=_REPO_DIR, text=True, timeout=5
+        ).strip())
+        new_msg = ""
+        if local != remote:
+            new_msg = subprocess.check_output(
+                ["git", "log", "-1", "--pretty=%s", "origin/main"],
+                cwd=_REPO_DIR, text=True, timeout=5
+            ).strip()
+        return {
+            "current_hash": local[:7],
+            "current_msg": current_msg,
+            "update_available": local != remote,
+            "commits_behind": behind,
+            "new_msg": new_msg,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/update/apply")
+async def update_apply(background_tasks: BackgroundTasks):
+    async def do_update():
+        await asyncio.sleep(0.4)
+        subprocess.run(["git", "pull", "--ff-only"], cwd=_REPO_DIR, timeout=60)
+        pip_path = os.path.join(os.path.dirname(sys.executable), "pip")
+        subprocess.run(
+            [pip_path, "install", "-q", "-r", os.path.join(_REPO_DIR, "requirements.txt")],
+            timeout=120,
+        )
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    background_tasks.add_task(do_update)
+    return {"status": "updating"}
+
 
 @app.post("/api/connect")
 async def connect(request: PLCConnectRequest):
