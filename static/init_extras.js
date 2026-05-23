@@ -251,31 +251,9 @@
         });
     }
 
-    // ── SIDEBAR TOGGLE ───────────────────────────────────────────────────────
-    (function() {
-        const app = document.querySelector('.pkl-app');
-        const btn = document.getElementById('sidebarToggle');
-        if (!app || !btn) return;
-        const key = 'plc_sidebar_hidden';
-        if (localStorage.getItem(key) === '1') app.classList.add('sidebar-hidden');
-        btn.addEventListener('click', () => {
-            const hidden = app.classList.toggle('sidebar-hidden');
-            localStorage.setItem(key, hidden ? '1' : '0');
-        });
-    })();
-
     // ── KIOSK CLOSE ──────────────────────────────────────────────────────────
     if (new URLSearchParams(location.search).get('kiosk') === '1') {
         localStorage.setItem('plc_kiosk', '1');
-    }
-    if (localStorage.getItem('plc_kiosk') === '1') {
-        const btn = document.getElementById('kioskCloseBtn');
-        if (btn) {
-            btn.style.display = '';
-            btn.addEventListener('click', async () => {
-                await fetch('/api/system/quit', { method: 'POST' }).catch(() => {});
-            });
-        }
     }
 
     // ── UPDATE ────────────────────────────────────────────────────────────────
@@ -368,6 +346,27 @@
         setTimeout(() => checkForUpdate(true), 5000);
     }
 
+    function bindSidebarToggle() {
+        const app = document.querySelector('.pkl-app');
+        const btn = document.getElementById('sidebarToggle');
+        if (!app || !btn) return;
+        if (localStorage.getItem('plc_sidebar_hidden') === '1') app.classList.add('sidebar-hidden');
+        btn.addEventListener('click', () => {
+            const hidden = app.classList.toggle('sidebar-hidden');
+            localStorage.setItem('plc_sidebar_hidden', hidden ? '1' : '0');
+        });
+    }
+
+    function bindKioskClose() {
+        if (localStorage.getItem('plc_kiosk') !== '1') return;
+        const btn = document.getElementById('kioskCloseBtn');
+        if (!btn) return;
+        btn.style.display = '';
+        btn.addEventListener('click', async () => {
+            await fetch('/api/system/quit', { method: 'POST' }).catch(() => {});
+        });
+    }
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             bindTabs();
@@ -379,6 +378,8 @@
             tryAutoConnect();
             connectWs();
             bindUpdateUI();
+            bindSidebarToggle();
+            bindKioskClose();
         });
     } else {
         bindTabs();
@@ -390,5 +391,7 @@
         tryAutoConnect();
         connectWs();
         bindUpdateUI();
+        bindSidebarToggle();
+        bindKioskClose();
     }
 })();
