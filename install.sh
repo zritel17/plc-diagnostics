@@ -140,13 +140,44 @@ systemctl start plc-gateway
 
 DESKTOP_SRC="$INSTALL_DIR/plc-gateway-display.desktop"
 ACTUAL_HOME=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
-sed "s|/home/pi|$ACTUAL_HOME|g" "$DESKTOP_SRC" | \
-    sed "s|plc-diagnostics|$(basename "$INSTALL_DIR")|g" \
-    > /usr/share/applications/plc-gateway-display.desktop
+
+# Render .desktop with real paths
+RENDERED_DESKTOP=$(sed "s|/home/pi|$ACTUAL_HOME|g" "$DESKTOP_SRC" | \
+    sed "s|plc-diagnostics|$(basename "$INSTALL_DIR")|g")
+
+# App menu entry
+echo "$RENDERED_DESKTOP" > /usr/share/applications/plc-gateway-display.desktop
 update-desktop-database /usr/share/applications 2>/dev/null || true
 
+# XDG autostart — launch GUI on desktop login
 mkdir -p /etc/xdg/autostart
 cp /usr/share/applications/plc-gateway-display.desktop /etc/xdg/autostart/
+
+# Desktop shortcut (native window)
+DESKTOP_DIR="$ACTUAL_HOME/Desktop"
+if [[ -d "$DESKTOP_DIR" ]]; then
+    cp /usr/share/applications/plc-gateway-display.desktop "$DESKTOP_DIR/PLC Gateway.desktop"
+    chmod +x "$DESKTOP_DIR/PLC Gateway.desktop"
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$DESKTOP_DIR/PLC Gateway.desktop"
+fi
+
+# Desktop shortcut (browser — opens web UI in Chromium)
+PI_IP_NOW=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
+BROWSER_DESKTOP="[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PLC Gateway (Browser)
+Comment=Open PLC Gateway web interface in browser
+Exec=chromium-browser http://${PI_IP_NOW}:5000
+Icon=$ACTUAL_HOME/$(basename "$INSTALL_DIR")/static/assets/logo-glyph.svg
+Terminal=false
+Categories=Utility;"
+echo "$BROWSER_DESKTOP" > /usr/share/applications/plc-gateway-browser.desktop
+if [[ -d "$DESKTOP_DIR" ]]; then
+    echo "$BROWSER_DESKTOP" > "$DESKTOP_DIR/PLC Gateway (Browser).desktop"
+    chmod +x "$DESKTOP_DIR/PLC Gateway (Browser).desktop"
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$DESKTOP_DIR/PLC Gateway (Browser).desktop"
+fi
 
 success "Service and shortcuts installed"
 

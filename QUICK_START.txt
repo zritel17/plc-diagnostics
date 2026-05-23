@@ -7,6 +7,19 @@ Service: plc-gateway
 Port:    5000
 
 ─────────────────────────────────────────────────────────────────────────────
+WHERE TO FIND THINGS AFTER INSTALL
+─────────────────────────────────────────────────────────────────────────────
+
+  ~/Desktop/PLC Gateway.desktop          — opens native window (pywebview)
+  ~/Desktop/PLC Gateway (Browser).desktop — opens Chromium to the web UI
+  App menu → Utility → PLC Gateway       — same native window shortcut
+
+  App files:     ~/plc-diagnostics/
+  Password:      ~/plc-diagnostics/.env  (AUTH_PASSWORD)
+  Database:      ~/plc-diagnostics/plc_config.db  (dashboards, tags, recipes)
+  Logs:          sudo journalctl -u plc-gateway -f
+
+─────────────────────────────────────────────────────────────────────────────
 FIRST INSTALL (fresh Raspberry Pi)
 ─────────────────────────────────────────────────────────────────────────────
 
