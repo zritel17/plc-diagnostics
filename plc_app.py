@@ -15,6 +15,10 @@ if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY') and s
     print("No display found. Run from a desktop session.")
     sys.exit(0)
 
+# Fix WebKit GPU rendering artifacts on Raspberry Pi / Wayland
+os.environ.setdefault('WEBKIT_DISABLE_COMPOSITING_MODE', '1')
+os.environ.setdefault('WEBKIT_DISABLE_DMABUF_RENDERER', '1')
+
 try:
     import webview
 except Exception as e:
@@ -64,6 +68,6 @@ window = webview.create_window(
     height=args.height,
     fullscreen=fullscreen,
     resizable=args.no_fullscreen or sys.platform == "darwin",
-    min_size=(800, 480),
+    min_size=(480, 320),
 )
-webview.start(on_loaded, window)
+webview.start(on_loaded, window, gui='gtk')
