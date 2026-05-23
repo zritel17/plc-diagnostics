@@ -356,6 +356,16 @@ async def auth_check():
     return {"ok": True}
 
 
+@app.post("/api/system/quit")
+async def system_quit(background_tasks: BackgroundTasks):
+    async def do_quit():
+        await asyncio.sleep(0.3)
+        subprocess.run(["pkill", "-f", "chromium.*localhost:5000"], capture_output=True)
+        subprocess.run(["pkill", "-f", "plc_app.py"], capture_output=True)
+    background_tasks.add_task(do_quit)
+    return {"status": "closing"}
+
+
 _REPO_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @app.get("/api/update/check")

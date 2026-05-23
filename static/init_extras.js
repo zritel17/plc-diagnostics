@@ -251,6 +251,20 @@
         });
     }
 
+    // ── KIOSK CLOSE ──────────────────────────────────────────────────────────
+    if (new URLSearchParams(location.search).get('kiosk') === '1') {
+        localStorage.setItem('plc_kiosk', '1');
+    }
+    if (localStorage.getItem('plc_kiosk') === '1') {
+        const btn = document.getElementById('kioskCloseBtn');
+        if (btn) {
+            btn.style.display = '';
+            btn.addEventListener('click', async () => {
+                await fetch('/api/system/quit', { method: 'POST' }).catch(() => {});
+            });
+        }
+    }
+
     // ── UPDATE ────────────────────────────────────────────────────────────────
     let _updateInfo = null;
 

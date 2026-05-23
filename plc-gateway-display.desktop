@@ -3,7 +3,7 @@ Version=1.0
 Type=Application
 Name=PLC Gateway
 Comment=Allen-Bradley PLC monitoring and control
-Exec=/home/pi/plc-diagnostics/venv/bin/python3 /home/pi/plc-diagnostics/plc_app.py
+Exec=chromium --kiosk --disable-features=Translate --noerrdialogs --disable-infobars http://localhost:5000?kiosk=1
 Icon=/home/pi/plc-diagnostics/static/assets/logo-glyph.svg
 Terminal=false
 Categories=Utility;
