@@ -1,129 +1,96 @@
 ╔════════════════════════════════════════════════════════════════════════════╗
-║                    PLC Edge Gateway — БЫСТРЫЙ СТАРТ                       ║
+║                       PLC Edge Gateway — QUICK START                      ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 
-Проект: /home/pi/plc-diagnostics/
-Сервис: plc-gateway  (НЕ plc-diagnostics — старое название)
-Порт:   5000
+Project: /home/pi/plc-diagnostics/
+Service: plc-gateway
+Port:    5000
 
 ─────────────────────────────────────────────────────────────────────────────
-ОБНОВИТЬ И ПЕРЕЗАПУСТИТЬ (после изменений кода)
+FIRST INSTALL (fresh Raspberry Pi)
 ─────────────────────────────────────────────────────────────────────────────
 
-  cd /home/pi/plc-diagnostics
+  git clone https://<TOKEN>@github.com/zritel17/plc-diagnostics.git ~/plc-diagnostics
+  sudo ~/plc-diagnostics/install.sh
+
+  Then set your password:
+    nano ~/plc-diagnostics/.env   (set AUTH_PASSWORD)
+
+─────────────────────────────────────────────────────────────────────────────
+UPDATE (in-app — recommended)
+─────────────────────────────────────────────────────────────────────────────
+
+  Open the web UI → click "Update available" in the sidebar → Apply & Restart
+  The app pulls the latest code and restarts automatically.
+
+─────────────────────────────────────────────────────────────────────────────
+UPDATE (manual via SSH)
+─────────────────────────────────────────────────────────────────────────────
+
+  cd ~/plc-diagnostics
   git pull
   sudo systemctl restart plc-gateway
 
 ─────────────────────────────────────────────────────────────────────────────
-ОТКРЫТЬ В БРАУЗЕРЕ
+OPEN IN BROWSER
 ─────────────────────────────────────────────────────────────────────────────
 
-  http://<ip-малинки>:5000          — через локальную сеть
-  http://<tailscale-ip>:5000        — через Tailscale
+  http://<pi-ip>:5000          — local network
+  http://<tailscale-ip>:5000   — over Tailscale
 
-  Логин: пароль из .env (переменная AUTH_PASSWORD)
+  Login: password from .env (AUTH_PASSWORD)
 
 ─────────────────────────────────────────────────────────────────────────────
-УПРАВЛЕНИЕ СЕРВИСОМ
+SERVICE MANAGEMENT
 ─────────────────────────────────────────────────────────────────────────────
 
-  sudo systemctl status  plc-gateway     # статус
-  sudo systemctl restart plc-gateway     # перезапуск
-  sudo systemctl stop    plc-gateway     # остановить
-  sudo journalctl -u plc-gateway -f      # логи в реальном времени
+  sudo systemctl status  plc-gateway     # status
+  sudo systemctl restart plc-gateway     # restart
+  sudo systemctl stop    plc-gateway     # stop
+  sudo journalctl -u plc-gateway -f      # live logs
 
 ─────────────────────────────────────────────────────────────────────────────
 DOCKER (InfluxDB)
 ─────────────────────────────────────────────────────────────────────────────
 
-  sudo docker compose ps                 # статус контейнера
-  sudo docker compose restart influxdb   # перезапустить InfluxDB
-  sudo docker compose logs -f influxdb   # логи InfluxDB
+  sudo docker compose ps                 # container status
+  sudo docker compose restart influxdb   # restart InfluxDB
+  sudo docker compose logs -f influxdb   # InfluxDB logs
 
-  InfluxDB UI: http://<ip>:8086   (admin / plcgateway123)
-
-─────────────────────────────────────────────────────────────────────────────
-ПЕРВЫЙ ЗАПУСК (установка)
-─────────────────────────────────────────────────────────────────────────────
-
-  bash /home/pi/plc-diagnostics/install.sh
+  InfluxDB UI: http://<pi-ip>:8086   (admin / plcgateway123)
 
 ─────────────────────────────────────────────────────────────────────────────
-ТЕСТОВЫЙ ЗАПУСК (без systemd, видно логи напрямую)
+TEST RUN (no systemd, logs visible directly)
 ─────────────────────────────────────────────────────────────────────────────
 
-  cd /home/pi/plc-diagnostics
-  uvicorn app:app --host 0.0.0.0 --port 5000
+  cd ~/plc-diagnostics
+  venv/bin/python3 -m uvicorn app:app --host 0.0.0.0 --port 5000
 
 ─────────────────────────────────────────────────────────────────────────────
-ИНТЕРФЕЙС — 5 ВКЛАДОК В ЛЕВОМ САЙДБАРЕ
+SIDEBAR TABS
 ─────────────────────────────────────────────────────────────────────────────
 
-  ПЛК                 Подключение + живая таблица тегов (открывается по умолч.)
-  Контрольная панель  Виджеты управления (кнопки, индикаторы, секции)
-  Дашборды            Исторические графики из InfluxDB
-  Теги                Конфиг коллектора + список тегов для записи в InfluxDB
-  Рецепты             UDT-теги: таблица членов, снимки, лог изменений
+  PLC              Connect + live tag table (default view)
+  Control Panel    Control widgets (buttons, indicators, sections)
+  Dashboards       Historical charts from InfluxDB
+  Tags             Collector config + tags to record in InfluxDB
+  Recipes          UDT tags: member table, snapshots, change log
+  AI Analytics     Local AI anomaly detection and diagnostics
 
 ─────────────────────────────────────────────────────────────────────────────
-КОНТРОЛЬНАЯ ПАНЕЛЬ — ВОЗМОЖНОСТИ
+TROUBLESHOOTING
 ─────────────────────────────────────────────────────────────────────────────
 
-  Типы виджетов:
-    Кнопка (удерж.)   — пишет '1' пока нажата, '0' при отпускании
-    Кнопка (фикс.)    — toggle '0'↔'1', мгновенный отклик в UI
-    Индикатор         — показывает ВКЛ/ВЫКЛ по тегу
-    Числовой индикатор / ввод
-    Секция            — полноширинный заголовок-разделитель для группировки
+  Redirected to login on every open:
+    → Normal after service restart (tokens reset). Log in again.
 
-  Кнопка (удерж./фикс.) поддерживает дополнительный тег-индикатор:
-    → в одной карточке кнопка пишет один тег, а маленький индикатор
-      снизу показывает состояние другого (обратная связь от ПЛК)
+  Tags not visible in Control Panel:
+    → Connect to PLC on the PLC tab (or enable Auto-connect).
 
-  Режим правки:
-    → добавление/удаление виджетов
-    → drag-and-drop сортировка (порядок сохраняется)
-    → фильтр по избранным тегам
+  Tags don't appear immediately after connecting:
+    → Normal — first batch read takes ~500 ms.
 
-─────────────────────────────────────────────────────────────────────────────
-КАК РАБОТАЕТ ОПРОС И ЗАПИСЬ ТЕГОВ
-─────────────────────────────────────────────────────────────────────────────
+  Old CSS/JS in browser:
+    → Hard refresh: Ctrl+Shift+R
 
-  Фоновый reader (current_plc) читает все теги batch-запросом каждые 500 мс.
-  GET /api/tags — возвращает кэш мгновенно (нет задержки от ПЛК).
-  POST /api/write — использует отдельное соединение (_write_plc),
-    не конкурирует с чтением, задержка ~5 мс.
-  Фронтенд обновляет значения каждые 300 мс из кэша.
-
-─────────────────────────────────────────────────────────────────────────────
-СЦЕНАРИЙ РАБОТЫ
-─────────────────────────────────────────────────────────────────────────────
-
-  1. Вкладка «ПЛК» → IP ПЛК + Slot → «Подключить»
-     Через ~500 мс появляется таблица тегов с живыми значениями.
-
-  2. Для каждого тега одним кликом «+ Сбор» → тег идёт в коллектор.
-     Или «+ Добавить из ПЛК» на вкладке «Теги» для массового добавления.
-
-  3. Вкладка «Теги» → «Настройки» → IP ПЛК + интервал → «Сохранить».
-     «▶ Запустить» коллектор. Данные пишутся в InfluxDB.
-
-  4. Вкладка «Дашборды» → «+ Новый» → добавить виджеты → смотреть историю.
-
-─────────────────────────────────────────────────────────────────────────────
-ЕСЛИ ЧТО-ТО НЕ РАБОТАЕТ
-─────────────────────────────────────────────────────────────────────────────
-
-  Редирект на логин при каждом открытии:
-    → Норма после перезапуска сервиса (токены сбрасываются). Войдите снова.
-
-  Теги не видны на Контрольной панели:
-    → Подключитесь к ПЛК на вкладке «ПЛК» (или включите «Авто-подключение»).
-
-  Теги не появляются сразу после подключения:
-    → Нормально, первый batch-запрос приходит за ~500 мс.
-
-  Старый CSS/JS в браузере:
-    → Сбросить кэш: Ctrl+Shift+R (текущая версия ?v=18)
-
-  Подробная документация: README.md
+  Full documentation: README.md

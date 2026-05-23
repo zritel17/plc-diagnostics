@@ -1,53 +1,53 @@
 #!/bin/bash
-# PLC Gateway — деинсталлятор
-# Запуск: sudo ./uninstall.sh
+# PLC Gateway — uninstaller
+# Usage: sudo ./uninstall.sh
 set -euo pipefail
 
 R='\033[0;31m'; G='\033[0;32m'; Y='\033[1;33m'; N='\033[0m'
-[[ $EUID -eq 0 ]] || { echo "Запустите с sudo: sudo ./uninstall.sh"; exit 1; }
+[[ $EUID -eq 0 ]] || { echo "Run with sudo: sudo ./uninstall.sh"; exit 1; }
 
 INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo ""
 echo "═══════════════════════════════════════════════════════"
-echo "  PLC Gateway — деинсталляция"
+echo "  PLC Gateway — uninstall"
 echo "═══════════════════════════════════════════════════════"
 echo ""
 
-# ── Остановить и удалить сервис ───────────────────────────────────────────────
-echo -e "${Y}→${N} Останавливаю и удаляю systemd-сервис..."
+# ── Stop and remove service ───────────────────────────────────────────────────
+echo -e "${Y}→${N} Stopping and removing systemd service..."
 systemctl stop plc-gateway 2>/dev/null || true
 systemctl disable plc-gateway 2>/dev/null || true
 rm -f /etc/systemd/system/plc-gateway.service
 systemctl daemon-reload
-echo -e "${G}✓${N} Сервис удалён"
+echo -e "${G}✓${N} Service removed"
 
-# ── Удалить ярлыки ────────────────────────────────────────────────────────────
-echo -e "${Y}→${N} Удаляю ярлыки приложения..."
+# ── Remove desktop shortcuts ──────────────────────────────────────────────────
+echo -e "${Y}→${N} Removing application shortcuts..."
 rm -f /etc/xdg/autostart/plc-gateway-display.desktop
 rm -f /usr/share/applications/plc-gateway-display.desktop
 update-desktop-database /usr/share/applications 2>/dev/null || true
-echo -e "${G}✓${N} Ярлыки удалены"
+echo -e "${G}✓${N} Shortcuts removed"
 
-# ── Спросить про InfluxDB ─────────────────────────────────────────────────────
+# ── Ask about InfluxDB ────────────────────────────────────────────────────────
 echo ""
-read -r -p "Остановить и удалить контейнер InfluxDB? [д/N] " ans
-if [[ "${ans,,}" == "д" || "${ans,,}" == "y" || "${ans,,}" == "yes" ]]; then
+read -r -p "Stop and remove InfluxDB container? [y/N] " ans
+if [[ "${ans,,}" == "y" || "${ans,,}" == "yes" ]]; then
     cd "$INSTALL_DIR"
     docker compose down -v 2>/dev/null || true
-    echo -e "${G}✓${N} InfluxDB остановлен и удалён"
+    echo -e "${G}✓${N} InfluxDB stopped and removed"
 else
-    echo "  InfluxDB оставлен без изменений"
+    echo "  InfluxDB left unchanged"
 fi
 
-# ── Информация об оставшихся данных ───────────────────────────────────────────
+# ── Remaining data ────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"
-echo -e "${G}  Деинсталляция завершена${N}"
+echo -e "${G}  Uninstall complete${N}"
 echo "═══════════════════════════════════════════════════════"
 echo ""
-echo "  Сохранены (удалите вручную если нужно):"
-echo "    $INSTALL_DIR/venv/         — Python окружение"
-echo "    $INSTALL_DIR/plc_config.db — база данных (дашборды, теги)"
-echo "    $INSTALL_DIR/.env          — конфигурация и пароли"
+echo "  The following were kept (remove manually if needed):"
+echo "    $INSTALL_DIR/venv/         — Python environment"
+echo "    $INSTALL_DIR/plc_config.db — database (dashboards, tags)"
+echo "    $INSTALL_DIR/.env          — configuration and passwords"
 echo ""
