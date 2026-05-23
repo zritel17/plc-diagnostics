@@ -71,7 +71,7 @@ VENV_DIR="$INSTALL_DIR/venv"
 if [[ -d "$VENV_DIR" ]]; then
     info "  Updating existing venv..."
 else
-    sudo -u "$ACTUAL_USER" python3 -m venv "$VENV_DIR"
+    sudo -u "$ACTUAL_USER" python3 -m venv --system-site-packages "$VENV_DIR"
 fi
 
 sudo -u "$ACTUAL_USER" "$VENV_DIR/bin/pip" install -q --upgrade pip
@@ -168,7 +168,7 @@ Version=1.0
 Type=Application
 Name=PLC Gateway (Browser)
 Comment=Open PLC Gateway web interface in browser
-Exec=chromium-browser http://localhost:5000
+Exec=chromium http://localhost:5000
 Icon=$ACTUAL_HOME/$(basename "$INSTALL_DIR")/static/assets/logo-glyph.svg
 Terminal=false
 Categories=Utility;"
