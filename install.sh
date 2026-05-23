@@ -38,8 +38,8 @@ success "System packages installed"
 # ── 2. Docker + InfluxDB ──────────────────────────────────────────────────────
 info "2/7 Docker and InfluxDB..."
 if ! command -v docker &>/dev/null; then
-    info "  Installing Docker..."
-    apt-get install -y --no-install-recommends docker.io docker-compose-plugin > /dev/null 2>&1
+    info "  Installing Docker (official script)..."
+    curl -fsSL https://get.docker.com | sh
     usermod -aG docker "$ACTUAL_USER" || true
     systemctl enable docker --quiet
     systemctl start docker
