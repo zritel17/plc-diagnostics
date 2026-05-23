@@ -180,6 +180,12 @@ if [[ -d "$DESKTOP_DIR" ]]; then
     sudo -u "$ACTUAL_USER" gio set "$DESKTOP_DIR/PLC Gateway (Browser).desktop" metadata::trusted true 2>/dev/null || true
 fi
 
+# Tell PCManFM to launch .desktop files directly without asking
+find "$ACTUAL_HOME/.config/pcmanfm" -name "pcmanfm.conf" 2>/dev/null | while read -r f; do
+    sed -i '/quick_exec/d' "$f"
+    sed -i '/\[config\]/a quick_exec=1' "$f"
+done
+
 success "Service and shortcuts installed"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
