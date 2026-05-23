@@ -345,7 +345,7 @@ async def login_page():
 @app.post("/api/auth/login")
 async def auth_login(body: LoginRequest):
     if body.password != WEB_PASSWORD:
-        raise HTTPException(status_code=401, detail="Неверный пароль")
+        raise HTTPException(status_code=401, detail="Invalid password")
     return {"token": _issue_token()}
 
 @app.get("/api/auth/check")
@@ -363,7 +363,7 @@ async def connect(request: PLCConnectRequest):
     slot = request.slot
 
     if not ip:
-        raise HTTPException(status_code=400, detail="IP адрес не может быть пустым")
+        raise HTTPException(status_code=400, detail="IP address cannot be empty")
 
     try:
         if current_plc and not isinstance(current_plc, _EmulatorPLC):
@@ -452,8 +452,8 @@ async def connect(request: PLCConnectRequest):
             print(f"[CONNECT] Тегов: {total}")
         
         if not all_tags_raw:
-            add_to_history(ip, slot, "failed - нет тегов")
-            raise HTTPException(status_code=400, detail="Не удалось получить теги")
+            add_to_history(ip, slot, "failed - no tags")
+            raise HTTPException(status_code=400, detail="Failed to retrieve tags")
         
         # Сканируем I/O модули из известных MODULE тегов
         print(f"[CONNECT] Сканирую I/O модули...")
@@ -494,7 +494,7 @@ async def connect(request: PLCConnectRequest):
         error_str = str(e)
         print(f"[ERROR] {error_str}")
         add_to_history(ip, slot, f"error - {error_str[:80]}")
-        raise HTTPException(status_code=400, detail=f"Ошибка: {error_str}")
+        raise HTTPException(status_code=400, detail=f"Error: {error_str}")
 
 @app.post("/api/disconnect")
 async def disconnect():
@@ -752,7 +752,7 @@ def _build_tags_result(tag_values):
                 result[category].append({
                     'name': tag_name, 'type': tag['type'], 'is_array': True,
                     'array_size': tag['array_size'],
-                    'value': f"[{tag['array_size']} элементов]", 'elements': elements
+                    'value': f"[{tag['array_size']} elements]", 'elements': elements
                 })
             else:
                 main_value = tag_values.get(tag_name)
@@ -840,22 +840,22 @@ async def _emulator_bg_tick():
 @app.get("/api/tags")
 async def get_tags():
     if not current_plc:
-        raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
+        raise HTTPException(status_code=400, detail="No PLC connection")
     if _tags_cache is None:
-        raise HTTPException(status_code=503, detail="Данные загружаются…")
+        raise HTTPException(status_code=503, detail="Loading data…")
     return _tags_cache
 
 @app.get("/api/io")
 async def get_io():
     if not current_plc:
-        raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
+        raise HTTPException(status_code=400, detail="No PLC connection")
     return _io_cache if _io_cache is not None else []
 
 @app.post("/api/write")
 async def write_tag(request: WriteTagRequest):
     plc = _write_plc or current_plc
     if not plc:
-        raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
+        raise HTTPException(status_code=400, detail="No PLC connection")
 
     try:
         tag_name = request.tag.strip()
@@ -886,12 +886,12 @@ async def write_tag(request: WriteTagRequest):
             return {"status": "success", "tag": tag_name, "value": str(value)}
         else:
             status = response.Status if hasattr(response, 'Status') else "Unknown"
-            raise HTTPException(status_code=400, detail=f"Ошибка записи: {status}")
+            raise HTTPException(status_code=400, detail=f"Write error: {status}")
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Ошибка: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
 
 @app.post("/api/tags/write")
 async def write_tag_v2(request: WriteTagRequest):
@@ -927,7 +927,7 @@ async def get_tags_list():
     """
     global all_tags_raw, current_plc
     if not current_plc:
-        raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
+        raise HTTPException(status_code=400, detail="No PLC connection")
     return {"tags": all_tags_raw, "count": len(all_tags_raw)}
 
 
@@ -1092,7 +1092,7 @@ async def dash_get(dash_id: int):
     async with SessionLocal() as s:
         d = await s.get(Dashboard, dash_id)
         if d is None:
-            raise HTTPException(status_code=404, detail="Дашборд не найден")
+            raise HTTPException(status_code=404, detail="Dashboard not found")
         return d
 
 
@@ -1101,7 +1101,7 @@ async def dash_update(dash_id: int, payload: DashboardUpdate):
     async with SessionLocal() as s:
         d = await s.get(Dashboard, dash_id)
         if d is None:
-            raise HTTPException(status_code=404, detail="Дашборд не найден")
+            raise HTTPException(status_code=404, detail="Dashboard not found")
         if payload.name is not None:
             d.name = payload.name
         if payload.widgets is not None:
@@ -1119,7 +1119,7 @@ async def dash_delete(dash_id: int):
     async with SessionLocal() as s:
         d = await s.get(Dashboard, dash_id)
         if d is None:
-            raise HTTPException(status_code=404, detail="Дашборд не найден")
+            raise HTTPException(status_code=404, detail="Dashboard not found")
         await s.delete(d)
         await s.commit()
     return {"status": "ok"}
@@ -1183,7 +1183,7 @@ async def get_recipes():
 async def read_recipe_values(tag_name: str):
     """Читает живые значения всех членов UDT тега."""
     if not current_plc:
-        raise HTTPException(status_code=400, detail="Нет подключения к ПЛК")
+        raise HTTPException(status_code=400, detail="No PLC connection")
 
     fields = []
     for t in tag_structure.get('UDT', []):
@@ -1195,7 +1195,7 @@ async def read_recipe_values(tag_name: str):
         fields = await asyncio.to_thread(enumerate_udt_members, current_plc, tag_name)
 
     if not fields:
-        raise HTTPException(status_code=404, detail="Члены UDT не найдены")
+        raise HTTPException(status_code=404, detail="UDT members not found")
 
     members = []
     for f in fields:
@@ -1230,7 +1230,7 @@ async def list_snapshots(tag_name: str):
 @app.post("/api/recipes/{tag_name:path}/snapshots")
 async def save_snapshot(tag_name: str, body: RecipeSnapshotCreate):
     if not body.values:
-        raise HTTPException(status_code=400, detail="Нет значений для сохранения")
+        raise HTTPException(status_code=400, detail="No values to save")
     async with SessionLocal() as s:
         snap = db_module.RecipeSnapshot(
             recipe_tag=tag_name,
@@ -1248,7 +1248,7 @@ async def delete_snapshot(snap_id: int):
     async with SessionLocal() as s:
         row = await s.get(db_module.RecipeSnapshot, snap_id)
         if row is None:
-            raise HTTPException(status_code=404, detail="Снимок не найден")
+            raise HTTPException(status_code=404, detail="Snapshot not found")
         await s.delete(row)
         await s.commit()
     return {"status": "ok"}
@@ -1331,7 +1331,7 @@ def _build_context_text(tag_stats: dict, current_values: dict) -> str:
                     except (ValueError, TypeError):
                         pass
         lines.append(", ".join(parts))
-    return "\n".join(lines) if lines else "Данные в InfluxDB отсутствуют."
+    return "\n".join(lines) if lines else "No data in InfluxDB."
 
 
 @app.get("/api/ai/analyze/stream")
@@ -1387,7 +1387,7 @@ async def ai_analyze_stream(
                     },
                 ) as resp:
                     if resp.status_code != 200:
-                        yield f"data: [ERROR] Ollama вернул {resp.status_code}\n\n"
+                        yield f"data: [ERROR] Ollama returned {resp.status_code}\n\n"
                         return
                     async for line in resp.aiter_lines():
                         if not line:
@@ -1402,7 +1402,7 @@ async def ai_analyze_stream(
                         except json.JSONDecodeError:
                             pass
         except httpx.ConnectError:
-            yield f"data: [ERROR] Ollama недоступен ({OLLAMA_URL}). Запустите: sudo systemctl start ollama\n\n"
+            yield f"data: [ERROR] Ollama unavailable ({OLLAMA_URL}). Run: sudo systemctl start ollama\n\n"
         except Exception as e:
             yield f"data: [ERROR] {e}\n\n"
         yield "data: [DONE]\n\n"

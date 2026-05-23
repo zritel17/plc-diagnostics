@@ -82,8 +82,8 @@ window.Diagnostics = (() => {
             const connected = window.isConnected;
             wrap.innerHTML = `<div class="empty-state">
                 <div class="empty-state-icon">${connected ? '🔍' : '⚡'}</div>
-                <div>${connected ? 'Ничего не найдено' : 'Подключитесь к ПЛК'}</div>
-                ${!connected ? '<div style="font-size:11px;margin-top:8px;color:var(--fg-muted);">Введите IP адрес и нажмите «Подключить»</div>' : ''}
+                <div>${connected ? 'Nothing found' : 'Connect to PLC'}</div>
+                ${!connected ? '<div style="font-size:11px;margin-top:8px;color:var(--fg-muted);">Enter the IP address and click "Connect"</div>' : ''}
             </div>`;
             return;
         }
@@ -91,10 +91,10 @@ window.Diagnostics = (() => {
         let html = `<table class="data-table diag-table">
             <thead><tr>
                 <th style="width:28px;">★</th>
-                <th>Адрес</th>
-                <th style="width:80px;">Тип</th>
-                <th style="width:120px;">Значение</th>
-                <th>Действия</th>
+                <th>Address</th>
+                <th style="width:80px;">Type</th>
+                <th style="width:120px;">Value</th>
+                <th>Actions</th>
             </tr></thead><tbody>`;
 
         for (const r of rows) {
@@ -140,14 +140,14 @@ window.Diagnostics = (() => {
                              onmouseleave="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)"
                              ontouchstart="window.momentaryDown&&window.momentaryDown('${ea(r.name)}',this,event)"
                              ontouchend="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)"
-                             ontouchcancel="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)">⏺ Момент.</span>`;
+                             ontouchcancel="window.momentaryUp&&window.momentaryUp('${ea(r.name)}',this,event)">⏺ Moment.</span>`;
             } else if (!r.is_array) {
-                actions = `<span class="diag-edit-btn" onclick="window.editValue&&window.editValue('${ea(r.name)}')">✎ Запись</span>`;
+                actions = `<span class="diag-edit-btn" onclick="window.editValue&&window.editValue('${ea(r.name)}')">✎ Write</span>`;
             }
         }
 
         const fullType = r.type + (r.is_array ? '[]' : '');
-        actions += ` <span class="diag-hist-btn" onclick="Diagnostics._addCollect('${ea(r.name)}','${ea(fullType)}')">+ Сбор</span>`;
+        actions += ` <span class="diag-hist-btn" onclick="Diagnostics._addCollect('${ea(r.name)}','${ea(fullType)}')">+ Collect</span>`;
 
         return `<tr class="diag-row${canExpand ? ' expandable' : ''}" data-name="${ea(r.name)}">
             <td class="diag-fav" onclick="Diagnostics._fav('${ea(r.name)}')">${isFav ? '★' : '☆'}</td>
@@ -155,7 +155,7 @@ window.Diagnostics = (() => {
             <td><span class="type-badge">${esc(r.type)}${r.is_array ? '[]' : ''}</span></td>
             <td><span class="diag-val ${valClass}" data-value-of="${ea(r.name)}">${displayVal}</span></td>
             <td class="diag-actions">
-                ${canExpand ? `<span class="diag-expand-btn" data-expand="${ea(r.name)}">${isExp ? '▲ Скрыть' : (hasFields ? '▼ Поля' : '▼ Биты')}</span>` : ''}
+                ${canExpand ? `<span class="diag-expand-btn" data-expand="${ea(r.name)}">${isExp ? '▲ Hide' : (hasFields ? '▼ Fields' : '▼ Bits')}</span>` : ''}
                 ${actions}
             </td>
         </tr>`;
@@ -172,7 +172,7 @@ window.Diagnostics = (() => {
                 html += `<div class="diag-elem-row">
                     <span class="muted" style="min-width:60px;">[${elem.index}]</span>
                     <span class="diag-val val-num" data-value-of="${ea(elem.name)}">${esc(elem.value)}</span>
-                    <span class="diag-expand-btn" data-expand="${ea(elem.name)}" style="margin-left:6px;">${isExpElem ? '▲' : '▼ биты'}</span>
+                    <span class="diag-expand-btn" data-expand="${ea(elem.name)}" style="margin-left:6px;">${isExpElem ? '▲' : '▼ bits'}</span>
                 </div>`;
                 if (isExpElem && elem.bits) {
                     html += renderBitsInline(elem);
@@ -195,7 +195,7 @@ window.Diagnostics = (() => {
     function renderFieldsInline(fields) {
         let html = `<tr class="diag-expanded-row"><td colspan="5"><div class="diag-expand-body">
 <table class="data-table" style="width:100%;font-size:11px;margin:0;">
-<thead><tr><th>Поле</th><th style="width:70px;">Тип</th><th style="width:120px;">Значение</th></tr></thead>
+<thead><tr><th>Field</th><th style="width:70px;">Type</th><th style="width:120px;">Value</th></tr></thead>
 <tbody>`;
         for (const f of fields) {
             const ftype = (f.type || '').toUpperCase();
@@ -243,7 +243,7 @@ window.Diagnostics = (() => {
         if (!data.length) { wrap.innerHTML = ''; return; }
 
         let html = '<div class="io-modules-section">';
-        html += '<div class="io-modules-title">Модули ввода/вывода</div>';
+        html += '<div class="io-modules-title">I/O Modules</div>';
 
         for (const mod of data) {
             const modKey = mod.name || String(mod.slot);
@@ -271,10 +271,10 @@ window.Diagnostics = (() => {
                     const readable = mod.inputs.filter(x => x.value !== null && x.value !== undefined);
                     const activeIn = readable.filter(x => x.value).length;
                     const countLabel = readable.length
-                        ? `${activeIn} / ${readable.length} активны`
-                        : '<span class="io-no-access">нет доступа</span>';
+                        ? `${activeIn} / ${readable.length} active`
+                        : '<span class="io-no-access">no access</span>';
                     html += `<div class="io-ch-group">
-                        <div class="io-ch-group-title">Дискретные входы <span class="io-ch-count">${countLabel}</span></div>
+                        <div class="io-ch-group-title">Digital inputs <span class="io-ch-count">${countLabel}</span></div>
                         <div class="io-ch-grid">`;
                     for (const ch of mod.inputs) {
                         html += `<div class="${chClass('in', ch.value)}"
@@ -290,10 +290,10 @@ window.Diagnostics = (() => {
                     const readable = mod.outputs.filter(x => x.value !== null && x.value !== undefined);
                     const activeOut = readable.filter(x => x.value).length;
                     const countLabel = readable.length
-                        ? `${activeOut} / ${readable.length} активны`
-                        : '<span class="io-no-access">нет доступа</span>';
+                        ? `${activeOut} / ${readable.length} active`
+                        : '<span class="io-no-access">no access</span>';
                     html += `<div class="io-ch-group">
-                        <div class="io-ch-group-title">Дискретные выходы <span class="io-ch-count">${countLabel}</span></div>
+                        <div class="io-ch-group-title">Digital outputs <span class="io-ch-count">${countLabel}</span></div>
                         <div class="io-ch-grid">`;
                     for (const out of mod.outputs) {
                         html += `<div class="${chClass('out', out.value)}"
@@ -306,7 +306,7 @@ window.Diagnostics = (() => {
                 }
 
                 if (mod.analog_inputs?.length) {
-                    html += '<div class="io-ch-group"><div class="io-ch-group-title">Аналоговые входы</div><div class="io-analog-grid">';
+                    html += '<div class="io-ch-group"><div class="io-ch-group-title">Analog inputs</div><div class="io-analog-grid">';
                     for (const ch of mod.analog_inputs) {
                         const v = ch.value !== null && ch.value !== undefined ? Number(ch.value).toFixed(2) : '—';
                         html += `<div class="io-analog-ch" data-modkey="${safeKey}" data-dir="ai" data-ch="${ch.channel}" title="${ea(ch.tag)}">
@@ -318,7 +318,7 @@ window.Diagnostics = (() => {
                 }
 
                 if (mod.analog_outputs?.length) {
-                    html += '<div class="io-ch-group"><div class="io-ch-group-title">Аналоговые выходы</div><div class="io-analog-grid">';
+                    html += '<div class="io-ch-group"><div class="io-ch-group-title">Analog outputs</div><div class="io-analog-grid">';
                     for (const ch of mod.analog_outputs) {
                         const v = ch.value !== null && ch.value !== undefined ? Number(ch.value).toFixed(2) : '—';
                         html += `<div class="io-analog-ch io-analog-writable" data-modkey="${safeKey}" data-dir="ao" data-ch="${ch.channel}" title="${ea(ch.tag)}"
@@ -429,10 +429,10 @@ window.Diagnostics = (() => {
             });
             if (!r.ok) {
                 const e = await r.json().catch(() => ({}));
-                alert('Ошибка: ' + (e.detail || r.status));
+                alert('Error: ' + (e.detail || r.status));
             }
         } catch (e) {
-            alert('Ошибка сети: ' + e.message);
+            alert('Network error: ' + e.message);
         }
     }
 

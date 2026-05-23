@@ -21,14 +21,14 @@ window.TagCfg = (() => {
         if (!tbody) return;
         counter.textContent = `(${configs.length})`;
         if (!configs.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="empty-row">Список пуст. Подключитесь к ПЛК на вкладке «Теги» и нажмите «+ Добавить из ПЛК».</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-row">List is empty. Connect to PLC on the "Tags" tab and click "+ Add from PLC".</td></tr>';
             return;
         }
         tbody.innerHTML = configs.map(c => {
             const isChange = c.update_mode === 'on_change';
             const param = isChange
                 ? `<input type="number" step="0.1" min="0" value="${c.deadband ?? 0}" data-id="${c.id}" data-field="deadband" /> <span class="muted">deadband</span>`
-                : `<input type="number" min="1" value="${c.interval_sec ?? 1}" data-id="${c.id}" data-field="interval_sec" /> <span class="muted">сек</span>`;
+                : `<input type="number" min="1" value="${c.interval_sec ?? 1}" data-id="${c.id}" data-field="interval_sec" /> <span class="muted">sec</span>`;
             return `<tr data-id="${c.id}">
                 <td class="tag-name-cell" title="${esc(c.tag_name)}">${esc(c.tag_name)}</td>
                 <td><span class="muted">${esc(c.tag_type || '—')}</span></td>
@@ -92,12 +92,12 @@ window.TagCfg = (() => {
     }
 
     async function deleteTag(name) {
-        if (!confirm(`Удалить «${name}» из сбора?`)) return;
+        if (!confirm(`Remove "${name}" from collection?`)) return;
         try {
             await fetch(`/api/config/tags/${encodeURIComponent(name)}`, { method: 'DELETE' });
             await loadConfigs();
         } catch (e) {
-            alert(`Ошибка: ${e.message}`);
+            alert(`Error: ${e.message}`);
         }
     }
 
@@ -128,7 +128,7 @@ window.TagCfg = (() => {
             const r = await fetch('/api/tags/list');
             if (r.status === 400) {
                 const err = await r.json().catch(() => ({}));
-                throw new Error(err.detail || 'Нет подключения к ПЛК. Откройте вкладку «Теги» и подключитесь.');
+                throw new Error(err.detail || 'No PLC connection. Open the "Tags" tab and connect.');
             }
             if (r.ok) {
                 const data = await r.json();
@@ -144,7 +144,7 @@ window.TagCfg = (() => {
         const r = await fetch('/api/tags');
         if (r.status === 400) {
             const err = await r.json().catch(() => ({}));
-            throw new Error(err.detail || 'Нет подключения к ПЛК. Откройте вкладку «Теги» и подключитесь.');
+            throw new Error(err.detail || 'No PLC connection. Open the "Tags" tab and connect.');
         }
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
@@ -154,22 +154,22 @@ window.TagCfg = (() => {
     async function openAddModal() {
         const btn = document.getElementById('cfgAddFromPlcBtn');
         const oldText = btn ? btn.textContent : null;
-        if (btn) { btn.disabled = true; btn.textContent = '⏳ Загружаю теги…'; }
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Loading tags…'; }
         try {
             const flatTags = await fetchPlcTagsViaApi();
             if (!flatTags.length) {
-                alert('Нет тегов в ПЛК.');
+                alert('No tags in PLC.');
                 return;
             }
             const existing = new Set(configs.map(c => c.tag_name));
             const available = flatTags.filter(t => !existing.has(t.name));
             if (!available.length) {
-                alert('Все теги ПЛК уже добавлены в сбор.');
+                alert('All PLC tags are already added to collection.');
                 return;
             }
             renderModal(available);
         } catch (e) {
-            alert(`Не удалось получить теги: ${e.message}`);
+            alert(`Failed to load tags: ${e.message}`);
         } finally {
             if (btn) { btn.disabled = false; btn.textContent = oldText; }
         }
@@ -181,21 +181,21 @@ window.TagCfg = (() => {
         overlay.innerHTML = `
             <div class="modal">
                 <div class="modal-header">
-                    <span>Добавить теги в сбор · доступно ${tags.length}</span>
+                    <span>Add tags to collection · available ${tags.length}</span>
                     <button class="modal-close">×</button>
                 </div>
                 <div class="modal-body">
-                    <input type="text" id="modalSearch" placeholder="🔍 Фильтр по имени или типу" style="width:100%; margin-bottom:10px;" />
+                    <input type="text" id="modalSearch" placeholder="🔍 Filter by name or type" style="width:100%; margin-bottom:10px;" />
                     <div style="display:flex; gap: 12px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
-                        <span class="muted">Режим по умолчанию:</span>
+                        <span class="muted">Default mode:</span>
                         <select id="modalMode">
                             <option value="on_change">on_change</option>
                             <option value="on_interval">on_interval</option>
                         </select>
-                        <span class="muted">Параметр (deadband для float / интервал в сек):</span>
+                        <span class="muted">Parameter (deadband for float / interval in sec):</span>
                         <input type="number" id="modalParam" value="0" step="0.1" min="0" style="width:80px;" />
-                        <button class="btn btn-secondary btn-small" id="modalSelectAll">Выбрать все видимые</button>
-                        <button class="btn btn-secondary btn-small" id="modalClear">Очистить</button>
+                        <button class="btn btn-secondary btn-small" id="modalSelectAll">Select all visible</button>
+                        <button class="btn btn-secondary btn-small" id="modalClear">Clear</button>
                     </div>
                     <div class="modal-list" id="modalList">
                         ${tags.map(t => `
@@ -208,9 +208,9 @@ window.TagCfg = (() => {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <span class="muted" id="modalCount">0 выбрано</span>
-                    <button class="btn btn-secondary" id="modalCancelBtn">Отмена</button>
-                    <button class="btn" id="modalSaveBtn">Добавить выбранные</button>
+                    <span class="muted" id="modalCount">0 selected</span>
+                    <button class="btn btn-secondary" id="modalCancelBtn">Cancel</button>
+                    <button class="btn" id="modalSaveBtn">Add selected</button>
                 </div>
             </div>
         `;
@@ -221,7 +221,7 @@ window.TagCfg = (() => {
         const searchEl = overlay.querySelector('#modalSearch');
 
         const updateCount = () => {
-            countEl.textContent = `${list.querySelectorAll('input:checked').length} выбрано`;
+            countEl.textContent = `${list.querySelectorAll('input:checked').length} selected`;
         };
         list.addEventListener('change', updateCount);
 
@@ -274,10 +274,10 @@ window.TagCfg = (() => {
                     close();
                     await loadConfigs();
                 } else {
-                    alert('Ошибка сохранения');
+                    alert('Save error');
                 }
             } catch (e) {
-                alert(`Ошибка: ${e.message}`);
+                alert(`Error: ${e.message}`);
             }
         });
     }

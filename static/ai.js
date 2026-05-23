@@ -1,8 +1,8 @@
 window.AIAnalytics = (() => {
     const TITLES = {
-        anomalies:   '⚡ Анализ аномалий',
-        diagnostics: 'Диагностика',
-        report:      'Отчёт',
+        anomalies:   '⚡ Anomaly analysis',
+        diagnostics: 'Diagnostics',
+        report:      'Report',
     };
 
     let _currentSource = null;
@@ -48,7 +48,7 @@ window.AIAnalytics = (() => {
         card.style.display = 'none';
         if (statusCard) {
             statusCard.style.display = 'block';
-            statusMsg.textContent = 'Запрашиваю данные и анализирую…';
+            statusMsg.textContent = 'Fetching data and analyzing…';
         }
         if (stopBtn) stopBtn.style.display = '';
 
@@ -85,7 +85,7 @@ window.AIAnalytics = (() => {
             if (!card.style.display || card.style.display === 'none') {
                 card.style.display = '';
                 if (statusCard) statusCard.style.display = 'none';
-                titleEl.textContent = TITLES[analysisType] || 'Результат';
+                titleEl.textContent = TITLES[analysisType] || 'Result';
                 output.textContent = '';
             }
 
@@ -99,7 +99,7 @@ window.AIAnalytics = (() => {
             _currentSource = null;
             if (stopBtn) stopBtn.style.display = 'none';
             if (!_fullText && statusCard) {
-                statusMsg.textContent = 'Ошибка подключения к серверу. Проверьте, запущен ли Ollama.';
+                statusMsg.textContent = 'Connection error. Check that Ollama is running.';
             }
         };
     }

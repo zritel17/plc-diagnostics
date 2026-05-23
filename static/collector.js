@@ -25,14 +25,14 @@ window.Collector = (() => {
     function renderStatus(s) {
         const stateEl = document.getElementById('collState');
         if (!stateEl) return;
-        stateEl.textContent = s.running ? '● Запущен' : '■ Остановлен';
+        stateEl.textContent = s.running ? '● Running' : '■ Stopped';
         stateEl.className = 'status-value ' + (s.running ? 'running' : 'stopped');
         document.getElementById('collPlcIp').textContent = s.plc_ip || '—';
         document.getElementById('collPolls').textContent = s.polls;
         document.getElementById('collWrites').textContent = s.writes;
         document.getElementById('collErrors').textContent = s.errors;
         const inflEl = document.getElementById('collInflux');
-        inflEl.textContent = s.influx_available ? 'OK' : 'недоступна';
+        inflEl.textContent = s.influx_available ? 'OK' : 'unavailable';
         inflEl.className = 'status-value ' + (s.influx_available ? 'running' : 'warn');
         const errEl = document.getElementById('collLastError');
         errEl.textContent = s.last_error ? `⚠ ${s.last_error}` : '';
@@ -77,10 +77,10 @@ window.Collector = (() => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
             });
-            if (r.ok) toast('Настройки сохранены', 'success');
-            else toast('Ошибка сохранения', 'error');
+            if (r.ok) toast('Settings saved', 'success');
+            else toast('Save error', 'error');
         } catch (e) {
-            toast(`Ошибка: ${e.message}`, 'error');
+            toast(`Error: ${e.message}`, 'error');
         }
     }
 
@@ -88,10 +88,10 @@ window.Collector = (() => {
         try {
             const r = await fetch('/api/collector/start', { method: 'POST' });
             const j = await r.json();
-            toast(`Коллектор: ${j.status || 'ok'}`, 'success');
+            toast(`Collector: ${j.status || 'ok'}`, 'success');
             setTimeout(fetchStatus, 500);
         } catch (e) {
-            toast(`Ошибка: ${e.message}`, 'error');
+            toast(`Error: ${e.message}`, 'error');
         }
     }
 
@@ -99,10 +99,10 @@ window.Collector = (() => {
         try {
             const r = await fetch('/api/collector/stop', { method: 'POST' });
             const j = await r.json();
-            toast(`Коллектор: ${j.status || 'ok'}`, 'success');
+            toast(`Collector: ${j.status || 'ok'}`, 'success');
             setTimeout(fetchStatus, 500);
         } catch (e) {
-            toast(`Ошибка: ${e.message}`, 'error');
+            toast(`Error: ${e.message}`, 'error');
         }
     }
 

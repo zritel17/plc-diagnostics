@@ -172,7 +172,7 @@ async function toggleConnection() {
 async function connect() {
     const ip = ipInput.value.trim();
     const slot = parseInt(slotInput.value) || 0;
-    if (!ip) { showAlert('Введите IP адрес', 'error'); return; }
+    if (!ip) { showAlert('Enter IP address', 'error'); return; }
     
     connectBtn.disabled = true;
     connectBtn.textContent = '⏳';
@@ -185,10 +185,10 @@ async function connect() {
         });
         if (r.ok) {
             const data = await r.json();
-            showAlert(`✅ ${data.tag_count} тегов, ${data.io_count} I/O`, 'success');
+            showAlert(`✅ ${data.tag_count} tags, ${data.io_count} I/O`, 'success');
             updateStatus('online', ip, slot);
             isConnected = true;
-            connectBtn.textContent = 'Отключить';
+            connectBtn.textContent = 'Disconnect';
             connectBtn.classList.add('btn-danger');
             needsFullRender = true;
             await loadTags();
@@ -197,14 +197,14 @@ async function connect() {
             loadHistory();
         } else {
             const err = await r.json();
-            showAlert(`Ошибка: ${err.detail}`, 'error');
+            showAlert(`Error: ${err.detail}`, 'error');
             updateStatus('offline');
         }
     } catch (e) {
-        showAlert(`Ошибка сети: ${e.message}`, 'error');
+        showAlert(`Network error: ${e.message}`, 'error');
     } finally {
         connectBtn.disabled = false;
-        if (!isConnected) connectBtn.textContent = 'Подключить';
+        if (!isConnected) connectBtn.textContent = 'Connect';
     }
 }
 
@@ -213,10 +213,10 @@ async function disconnect() {
     isConnected = false;
     stopAutoRefresh();
     updateStatus('offline');
-    connectBtn.textContent = 'Подключить';
+    connectBtn.textContent = 'Connect';
     connectBtn.classList.remove('btn-danger');
     if (emulatorBtn) {
-        emulatorBtn.textContent = 'Эмулятор';
+        emulatorBtn.textContent = 'Emulator';
         emulatorBtn.classList.remove('active', 'btn-danger');
     }
     tagsData = {};
@@ -226,7 +226,7 @@ async function disconnect() {
     if (placeholder) placeholder.style.display = 'block';
     needsFullRender = true;
     render();
-    showAlert('Отключено', 'success');
+    showAlert('Disconnected', 'success');
 }
 
 async function toggleEmulator() {
@@ -242,13 +242,13 @@ async function connectEmulator() {
         const r = await fetch(`${API_BASE}/api/emulator/connect`, { method: 'POST' });
         if (r.ok) {
             const data = await r.json();
-            showAlert(`✅ Эмулятор: ${data.tag_count} тега`, 'success');
+            showAlert(`✅ Emulator: ${data.tag_count} tags`, 'success');
             updateStatus('online', 'EMULATOR', 0);
             isConnected = true;
-            connectBtn.textContent = 'Отключить';
+            connectBtn.textContent = 'Disconnect';
             connectBtn.classList.add('btn-danger');
             if (emulatorBtn) {
-                emulatorBtn.textContent = 'Отключить';
+                emulatorBtn.textContent = 'Disconnect';
                 emulatorBtn.classList.add('active', 'btn-danger');
             }
             needsFullRender = true;
@@ -257,14 +257,14 @@ async function connectEmulator() {
             startAutoRefresh();
         } else {
             const err = await r.json();
-            showAlert(`Ошибка эмулятора: ${err.detail}`, 'error');
+            showAlert(`Emulator error: ${err.detail}`, 'error');
         }
     } catch (e) {
-        showAlert(`Ошибка: ${e.message}`, 'error');
+        showAlert(`Error: ${e.message}`, 'error');
     } finally {
         if (emulatorBtn) emulatorBtn.disabled = false;
         if (connectBtn) connectBtn.disabled = false;
-        if (!isConnected && emulatorBtn) emulatorBtn.textContent = 'Эмулятор';
+        if (!isConnected && emulatorBtn) emulatorBtn.textContent = 'Emulator';
     }
 }
 
@@ -372,7 +372,7 @@ async function loadHistory() {
 
 function renderHistory(items) {
     if (!items || items.length === 0) {
-        historyList.innerHTML = '<div style="color:#64748b; font-size:11px; text-align:center; padding:8px;">Пусто</div>';
+        historyList.innerHTML = '<div style="color:#64748b; font-size:11px; text-align:center; padding:8px;">Empty</div>';
         return;
     }
     historyList.innerHTML = items.map(h => {
@@ -459,7 +459,7 @@ function getTagFilterType(tag) {
 // ========== ПОЛНЫЙ РЕНДЕР (только при изменении структуры) ==========
 function renderTags() {
     if (!tagsData || Object.keys(tagsData).length === 0) {
-        tagTree.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div>Нет данных</div></div>';
+        tagTree.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div>No data</div></div>';
         return;
     }
     
@@ -482,7 +482,7 @@ function renderTags() {
         html += `</div>`;
     }
     
-    tagTree.innerHTML = html || '<div class="empty-state"><div class="empty-state-icon">🔍</div><div>Ничего не найдено</div></div>';
+    tagTree.innerHTML = html || '<div class="empty-state"><div class="empty-state-icon">🔍</div><div>Nothing found</div></div>';
     bindTreeEvents();
 }
 
@@ -587,7 +587,7 @@ function boolControlsHtml(tagName) {
               ontouchstart="momentaryDown('${t}', this, event)"
               ontouchend="momentaryUp('${t}', this, event)"
               ontouchcancel="momentaryUp('${t}', this, event)"
-              title="Удерживайте">⏺</span>
+              title="Hold">⏺</span>
     </div>`;
 }
 
@@ -733,14 +733,14 @@ function renderDetail() {
         </div>
     </div>
     <div class="value-display">
-        <div class="value-label">Значение:</div>
+        <div class="value-label">Value:</div>
         <div class="value-data ${valClass}" data-value-of="${escName}" ${!isArray && !isBoolTag ? `data-edit="${escName}"` : ''}>${escHtml(t.value)}</div>
     </div>`;
     
     if (isBoolTag) {
         const tEsc = escName;
         html += `<div class="bool-action-row">
-            <div class="value-label">Действия:</div>
+            <div class="value-label">Actions:</div>
             <div class="bool-action-buttons">
                 <div class="bool-action-btn toggle"
                      onclick="toggleBool('${tEsc}', event)">⇄ Toggle</div>
@@ -763,7 +763,7 @@ function renderDetail() {
         if (t.bits) {
             const numBits = t.num_bits;
             html += `<div class="bits-section" data-bits-of="${escName}">
-                <div class="bits-title">Биты (${numBits})</div>
+                <div class="bits-title">Bits (${numBits})</div>
                 <div class="bits-grid bits-${numBits}">`;
             for (let i = numBits - 1; i >= 0; i--) {
                 const v = t.bits[i];
@@ -778,7 +778,7 @@ function renderDetail() {
     
     if (isArray && t.elements) {
         html += `<div class="fields-section">
-            <div class="bits-title">Элементы массива (${t.array_size})</div>
+            <div class="bits-title">Array elements (${t.array_size})</div>
             <div class="fields-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">`;
         for (const elem of t.elements) {
             const ec = getValueClass(elem.type, elem.value);
@@ -802,7 +802,7 @@ function renderDetail() {
     
     if (t.fields && t.fields.length > 0) {
         html += `<div class="fields-section">
-            <div class="bits-title">Поля структуры</div>
+            <div class="bits-title">Structure fields</div>
             <div class="fields-grid">`;
         for (const f of t.fields) {
             const fc = getValueClass(f.type, f.value);
@@ -857,8 +857,8 @@ function renderIO() {
     if (!ioContainer) return;
     if (!ioData || ioData.length === 0) {
         ioContainer.innerHTML = isConnected
-            ? '<div class="empty-state"><div class="empty-state-icon">⚙️</div><div>I/O модули не найдены</div></div>'
-            : '<div class="empty-state"><div class="empty-state-icon">⚙️</div><div>Подключитесь к ПЛК</div></div>';
+            ? '<div class="empty-state"><div class="empty-state-icon">⚙️</div><div>No I/O modules found</div></div>'
+            : '<div class="empty-state"><div class="empty-state-icon">⚙️</div><div>Connect to PLC</div></div>';
         return;
     }
     
@@ -876,7 +876,7 @@ function renderIO() {
         if (mod.inputs && mod.inputs.length > 0) {
             const activeCount = mod.inputs.filter(x => x.value).length;
             html += `<div class="io-section">
-                <div class="io-section-title">🟢 Входы — ${mod.inputs.length} <span class="io-active-count" data-count-input="${mod.slot}" style="color:#4ade80;">(${activeCount} активны)</span></div>
+                <div class="io-section-title">🟢 Inputs — ${mod.inputs.length} <span class="io-active-count" data-count-input="${mod.slot}" style="color:#4ade80;">(${activeCount} active)</span></div>
                 <div class="io-channels">`;
             for (const inp of mod.inputs) {
                 const cls = inp.value ? 'input-on' : 'input-off';
@@ -891,7 +891,7 @@ function renderIO() {
         if (mod.outputs && mod.outputs.length > 0) {
             const activeCount = mod.outputs.filter(x => x.value).length;
             html += `<div class="io-section">
-                <div class="io-section-title">🟠 Выходы — ${mod.outputs.length} <span class="io-active-count" data-count-output="${mod.slot}" style="color:#fb923c;">(${activeCount} активны)</span></div>
+                <div class="io-section-title">🟠 Outputs — ${mod.outputs.length} <span class="io-active-count" data-count-output="${mod.slot}" style="color:#fb923c;">(${activeCount} active)</span></div>
                 <div class="io-channels">`;
             for (const out of mod.outputs) {
                 const cls = out.value ? 'output-on' : 'output-off';
@@ -907,7 +907,7 @@ function renderIO() {
         
         if (mod.analog_inputs && mod.analog_inputs.length > 0) {
             html += `<div class="io-section">
-                <div class="io-section-title">📊 Аналоговые входы</div>
+                <div class="io-section-title">📊 Analog inputs</div>
                 <div class="io-analog">`;
             for (const ch of mod.analog_inputs) {
                 html += `<div class="analog-card" data-analog-tag="${escAttr(ch.tag)}">
@@ -920,7 +920,7 @@ function renderIO() {
         
         if (mod.analog_outputs && mod.analog_outputs.length > 0) {
             html += `<div class="io-section">
-                <div class="io-section-title">📊 Аналоговые выходы</div>
+                <div class="io-section-title">📊 Analog outputs</div>
                 <div class="io-analog">`;
             for (const ch of mod.analog_outputs) {
                 html += `<div class="analog-card" data-analog-tag="${escAttr(ch.tag)}" onclick="editValue('${escAttr(ch.tag)}')" style="cursor:pointer;">
@@ -1008,7 +1008,7 @@ function expandAll(expand) {
 }
 
 window.editValue = function(tagName) {
-    const v = prompt(`Новое значение для:\n${tagName}`, '');
+    const v = prompt(`New value for:\n${tagName}`, '');
     if (v !== null && v !== '') instantWrite(tagName, v);
 };
 
@@ -1017,10 +1017,10 @@ function updateStatus(status, ip, slot) {
         statusBadge.textContent = `🟢 ${ip}:${slot}`;
         statusBadge.className = 'status-badge online';
     } else if (status === 'error') {
-        statusBadge.textContent = '⚠️ Ошибка';
+        statusBadge.textContent = '⚠️ Error';
         statusBadge.className = 'status-badge error';
     } else {
-        statusBadge.textContent = '🔴 Офлайн';
+        statusBadge.textContent = '🔴 Offline';
         statusBadge.className = 'status-badge';
     }
 }
@@ -1028,7 +1028,7 @@ function updateStatus(status, ip, slot) {
 function updateLastUpdate(ts) {
     if (!ts) return;
     const d = new Date(ts);
-    lastUpdate.textContent = `🕒 ${d.toLocaleTimeString('ru-RU')}`;
+    lastUpdate.textContent = `🕒 ${d.toLocaleTimeString()}`;
 }
 
 function startAutoRefresh() {

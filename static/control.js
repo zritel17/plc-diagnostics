@@ -69,7 +69,7 @@ window.ControlPanel = (() => {
         grid.innerHTML = '';
         if (!widgets.length) {
             grid.innerHTML = '<div class="muted" style="padding:24px; text-align:center;">' +
-                (editMode ? 'Добавьте виджеты через форму выше.' : 'Нет виджетов. Включите режим правки.') +
+                (editMode ? 'Add widgets using the form above.' : 'No widgets. Enable edit mode.') +
                 '</div>';
             return;
         }
@@ -92,7 +92,7 @@ window.ControlPanel = (() => {
                 // delete button
                 const del = document.createElement('button');
                 del.className = 'ctrl-del-btn';
-                del.title = 'Удалить';
+                del.title = 'Delete';
                 del.textContent = '×';
                 del.addEventListener('click', () => { removeWidget(w.id); });
                 card.appendChild(del);
@@ -143,7 +143,7 @@ window.ControlPanel = (() => {
 
         switch (w.type) {
             case 'section':
-                return `<div class="ctrl-section-header">${esc(w.label || 'Секция')}</div>`;
+                return `<div class="ctrl-section-header">${esc(w.label || 'Section')}</div>`;
 
             case 'momentary_button':
                 return `${header}<button class="ctrl-btn ctrl-momentary"
@@ -153,13 +153,13 @@ window.ControlPanel = (() => {
                     onmouseleave="ControlPanel._mup('${esc(w.tag)}',this)"
                     ontouchstart="ControlPanel._mdown('${esc(w.tag)}',this)"
                     ontouchend="ControlPanel._mup('${esc(w.tag)}',this)"
-                    ontouchcancel="ControlPanel._mup('${esc(w.tag)}',this)">▶ ПУСК</button>`;
+                    ontouchcancel="ControlPanel._mup('${esc(w.tag)}',this)">▶ START</button>`;
 
             case 'maintained_button':
                 return `${header}<button class="ctrl-btn ctrl-maintained ${isOn ? 'active' : ''}"
                     data-tag="${esc(w.tag)}"
                     onclick="ControlPanel._toggle('${esc(w.tag)}',this)"
-                    >${isOn ? '● ВКЛ' : '○ ВЫКЛ'}</button>`;
+                    >${isOn ? '● ON' : '○ OFF'}</button>`;
 
             case 'indicator':
                 return header;  // цвет карточки = состояние, больше ничего не нужно
@@ -174,7 +174,7 @@ window.ControlPanel = (() => {
                 return `${header}<div class="ctrl-num-input-wrap">
                     <div class="ctrl-num-display" data-tag="${esc(w.tag)}">${esc(val)}</div>
                     <form class="ctrl-write-form" onsubmit="return ControlPanel._write('${esc(w.tag)}',this)">
-                        <input type="number" step="any" placeholder="Значение" />
+                        <input type="number" step="any" placeholder="Value" />
                         <button type="submit" class="btn btn-small">▶</button>
                     </form>
                 </div>`;
@@ -210,7 +210,7 @@ window.ControlPanel = (() => {
         // мгновенно обновляем ТОЛЬКО эту кнопку — не ждём опроса ПЛК
         if (btn) {
             btn.classList.toggle('active', next === '1');
-            btn.textContent = next === '1' ? '● ВКЛ' : '○ ВЫКЛ';
+            btn.textContent = next === '1' ? '● ON' : '○ OFF';
         }
     }
     function _writeForm(tag, form) {
@@ -240,7 +240,7 @@ window.ControlPanel = (() => {
                     const btn = card.querySelector('.ctrl-maintained');
                     if (btn) {
                         btn.classList.toggle('active', isOn);
-                        btn.textContent = isOn ? '● ВКЛ' : '○ ВЫКЛ';
+                        btn.textContent = isOn ? '● ON' : '○ OFF';
                     }
                 }
             } else if (w.type === 'numeric_display' || w.type === 'numeric_input') {
@@ -266,9 +266,9 @@ window.ControlPanel = (() => {
         const label = document.getElementById('ctrlWLabel').value.trim();
         const tag = document.getElementById('ctrlWTag').value;
 
-        if (type !== 'section' && !tag) { alert('Выберите тег'); return; }
+        if (type !== 'section' && !tag) { alert('Select a tag'); return; }
 
-        const w = { id: uid(), type, label: label || (type === 'section' ? 'Секция' : tag), tag: tag || '' };
+        const w = { id: uid(), type, label: label || (type === 'section' ? 'Section' : tag), tag: tag || '' };
 
         if (BUTTON_TYPES.has(type)) {
             const indTag = document.getElementById('ctrlWIndicatorTag')?.value;
@@ -300,17 +300,17 @@ window.ControlPanel = (() => {
         const tags = availableTags().filter(t => !favs || favs.has(t.name));
         if (!tags.length) {
             const msg = favOnly
-                ? '<option value="">— нет избранных тегов —</option>'
-                : '<option value="">— нет тегов (подключитесь к ПЛК) —</option>';
+                ? '<option value="">— no favorite tags —</option>'
+                : '<option value="">— no tags (connect to PLC) —</option>';
             sel.innerHTML = msg;
-            if (indSel) indSel.innerHTML = '<option value="">— нет —</option>';
+            if (indSel) indSel.innerHTML = '<option value="">— none —</option>';
             return;
         }
         const opts = tags.map(t =>
             `<option value="${t.name.replace(/"/g,'&quot;')}">${t.name} (${t.type})</option>`
         ).join('');
         sel.innerHTML = opts;
-        if (indSel) indSel.innerHTML = '<option value="">— нет —</option>' + opts;
+        if (indSel) indSel.innerHTML = '<option value="">— none —</option>' + opts;
     }
 
     // show/hide tag & indicator fields based on selected type
@@ -334,7 +334,7 @@ window.ControlPanel = (() => {
         editMode = !editMode;
         const btn = document.getElementById('ctrlModeBtn');
         const form = document.getElementById('ctrlEditForm');
-        if (btn) btn.textContent = editMode ? '✔ Режим просмотра' : '✎ Режим правки';
+        if (btn) btn.textContent = editMode ? '✔ View mode' : '✎ Edit mode';
         if (form) form.style.display = editMode ? 'block' : 'none';
         if (editMode) { populateTagSelect(); onTypeChange(); }
         render();

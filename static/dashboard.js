@@ -14,7 +14,7 @@ window.Dashboards = (() => {
     const DEFAULT_REFRESH_MS = 5000;
 
     function rangeLabel(r) {
-        return r === 'realtime' ? '⚡ Реальное время' : r;
+        return r === 'realtime' ? '⚡ Real time' : r;
     }
 
     async function loadList() {
@@ -36,7 +36,7 @@ window.Dashboards = (() => {
             sel.value = id;
             await loadDashboard(id);
         } else {
-            sel.innerHTML = '<option value="">— нет дашбордов —</option>';
+            sel.innerHTML = '<option value="">— no dashboards —</option>';
             current = null;
             renderGrid();
         }
@@ -66,10 +66,10 @@ window.Dashboards = (() => {
                     .map(t => `<option value="${esc(t)}">${esc(t)}</option>`)
                     .join('');
             } else {
-                sel.innerHTML = `<option value="">— нет данных в InfluxDB${data.error ? ' (' + esc(data.error) + ')' : ''}—</option>`;
+                sel.innerHTML = `<option value="">— no data in InfluxDB${data.error ? ' (' + esc(data.error) + ')' : ''}—</option>`;
             }
         } catch (e) {
-            sel.innerHTML = '<option value="">— ошибка загрузки —</option>';
+            sel.innerHTML = '<option value="">— load error —</option>';
         }
     }
 
@@ -88,7 +88,7 @@ window.Dashboards = (() => {
     }
 
     async function newDashboard() {
-        const name = prompt('Название дашборда:', 'Новый дашборд');
+        const name = prompt('Dashboard name:', 'New dashboard');
         if (!name) return;
         const r = await fetch('/api/dashboard', {
             method: 'POST',
@@ -103,7 +103,7 @@ window.Dashboards = (() => {
 
     async function renameDashboard() {
         if (!current) return;
-        const name = prompt('Новое имя:', current.name);
+        const name = prompt('New name:', current.name);
         if (!name) return;
         const r = await fetch(`/api/dashboard/${current.id}`, {
             method: 'PUT',
@@ -118,7 +118,7 @@ window.Dashboards = (() => {
 
     async function deleteDashboard() {
         if (!current) return;
-        if (!confirm(`Удалить дашборд «${current.name}»?`)) return;
+        if (!confirm(`Delete dashboard "${current.name}"?`)) return;
         await fetch(`/api/dashboard/${current.id}`, { method: 'DELETE' });
         current = null;
         await loadList();
@@ -126,11 +126,11 @@ window.Dashboards = (() => {
 
     async function addWidget() {
         if (!current) {
-            alert('Сначала создайте или выберите дашборд.');
+            alert('Please create or select a dashboard first.');
             return;
         }
         const tag = document.getElementById('widTag').value;
-        if (!tag) { alert('Нет тегов в InfluxDB. Запустите коллектор.'); return; }
+        if (!tag) { alert('No tags in InfluxDB. Start the collector.'); return; }
         const newW = {
             tag_name: tag,
             widget_type: document.getElementById('widType').value,
@@ -169,11 +169,11 @@ window.Dashboards = (() => {
         realtimeIntervals.forEach(id => clearInterval(id));
         realtimeIntervals.clear();
         if (!current) {
-            grid.innerHTML = '<div class="muted" style="padding: 24px; text-align:center;">Нет дашбордов. Создайте новый.</div>';
+            grid.innerHTML = '<div class="muted" style="padding: 24px; text-align:center;">No dashboards. Create a new one.</div>';
             return;
         }
         if (!current.widgets.length) {
-            grid.innerHTML = '<div class="muted" style="padding: 24px; text-align:center;">Виджетов нет. Добавьте через форму выше.</div>';
+            grid.innerHTML = '<div class="muted" style="padding: 24px; text-align:center;">No widgets. Add one using the form above.</div>';
             return;
         }
         grid.innerHTML = current.widgets.map(w => {
@@ -185,12 +185,12 @@ window.Dashboards = (() => {
                         ${esc(w.title || w.tag_name)} <span class="muted">${esc(rangeLabel(w.time_range))}${w.aggregation ? ' · ' + esc(w.aggregation) : ''}</span>
                     </span>
                     <div class="widget-actions">
-                        <button data-action="refresh" title="Обновить">🔄</button>
-                        <button data-action="remove" title="Удалить">×</button>
+                        <button data-action="refresh" title="Refresh">🔄</button>
+                        <button data-action="remove" title="Delete">×</button>
                     </div>
                 </div>
                 <div class="widget-body" id="wbody-${w.id}">
-                    <div class="widget-empty">Загрузка…</div>
+                    <div class="widget-empty">Loading…</div>
                 </div>
             </div>`;
         }).join('');
@@ -244,16 +244,16 @@ window.Dashboards = (() => {
 
             if (w.widget_type === 'table') {
                 const rows = points.slice(-100).reverse().map(p => `
-                    <tr><td>${new Date(p.time).toLocaleString('ru-RU')}</td><td>${formatVal(p.value)}</td></tr>`).join('');
+                    <tr><td>${new Date(p.time).toLocaleString()}</td><td>${formatVal(p.value)}</td></tr>`).join('');
                 body.innerHTML = `<div style="width:100%; max-height:100%; overflow:auto;"><table class="data-table" style="width:100%">
-                    <thead><tr><th>Время</th><th>Значение</th></tr></thead>
-                    <tbody>${rows || '<tr><td colspan="2" class="empty-row">нет данных</td></tr>'}</tbody>
+                    <thead><tr><th>Time</th><th>Value</th></tr></thead>
+                    <tbody>${rows || '<tr><td colspan="2" class="empty-row">no data</td></tr>'}</tbody>
                 </table></div>`;
                 return;
             }
 
             if (!points.length) {
-                body.innerHTML = '<div class="widget-empty">Нет данных за период</div>';
+                body.innerHTML = '<div class="widget-empty">No data for period</div>';
                 return;
             }
 
@@ -277,7 +277,7 @@ window.Dashboards = (() => {
             // line_chart
             body.innerHTML = `<canvas id="chart-${w.id}" style="width:100%; height:100%;"></canvas>`;
             const ctx = document.getElementById(`chart-${w.id}`);
-            const labels = points.map(p => new Date(p.time).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }));
+            const labels = points.map(p => new Date(p.time).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }));
             const chart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -316,7 +316,7 @@ window.Dashboards = (() => {
             });
             widgetCharts.set(w.id, chart);
         } catch (e) {
-            body.innerHTML = `<div class="widget-empty">Ошибка: ${esc(e.message || e)}</div>`;
+            body.innerHTML = `<div class="widget-empty">Error: ${esc(e.message || e)}</div>`;
         }
     }
 

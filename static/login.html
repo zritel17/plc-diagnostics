@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PLC Edge Gateway — Вход</title>
+    <title>PLC Edge Gateway — Login</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -128,12 +128,12 @@
         </div>
 
         <div class="login-card">
-            <div class="login-title">Вход</div>
+            <div class="login-title">Login</div>
             <div class="login-sub">Allen-Bradley ControlLogix</div>
             <form id="loginForm">
-                <label class="field-label" for="pwdInput">Пароль</label>
-                <input type="password" id="pwdInput" placeholder="Введите пароль" autofocus />
-                <button type="submit" id="loginBtn">Войти</button>
+                <label class="field-label" for="pwdInput">Password</label>
+                <input type="password" id="pwdInput" placeholder="Enter password" autofocus />
+                <button type="submit" id="loginBtn">Sign in</button>
                 <div class="error-msg" id="errMsg"></div>
             </form>
         </div>
@@ -161,15 +161,15 @@
                     localStorage.setItem('plc_token', data.token);
                     window.location.href = '/';
                 } else {
-                    err.textContent = 'Неверный пароль';
+                    err.textContent = 'Invalid password';
                     err.style.display = 'block';
                 }
             } catch (ex) {
-                err.textContent = 'Ошибка сети: ' + ex.message;
+                err.textContent = 'Network error: ' + ex.message;
                 err.style.display = 'block';
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Войти';
+                btn.textContent = 'Sign in';
             }
         });
     </script>

@@ -20,22 +20,22 @@
         </div>
 
         <nav class="pkl-nav-section">
-            <div class="pkl-nav-section-title">Навигация</div>
-            <div class="tab active" data-tab="plc">ПЛК</div>
-            <div class="tab" data-tab="control">Контрольная панель</div>
-            <div class="tab" data-tab="dashboards">Дашборды</div>
-            <div class="tab" data-tab="collector">Теги</div>
-            <div class="tab" data-tab="recipes">Рецепты</div>
-            <div class="tab" data-tab="ai">ИИ-анализ</div>
+            <div class="pkl-nav-section-title">Navigation</div>
+            <div class="tab active" data-tab="plc">PLC</div>
+            <div class="tab" data-tab="control">Control Panel</div>
+            <div class="tab" data-tab="dashboards">Dashboards</div>
+            <div class="tab" data-tab="collector">Tags</div>
+            <div class="tab" data-tab="recipes">Recipes</div>
+            <div class="tab" data-tab="ai">AI Analytics</div>
         </nav>
 
         <div class="pkl-sidebar-footer">
             <div class="pkl-sidebar-stats">
-                <span class="header-stat">Тегов: <strong id="tagCount">0</strong></span>
+                <span class="header-stat">Tags: <strong id="tagCount">0</strong></span>
                 <span class="header-stat">I/O: <strong id="ioCount">0</strong></span>
-                <span class="header-stat">Сбор: <strong id="collectorBadge">—</strong></span>
+                <span class="header-stat">Collect: <strong id="collectorBadge">—</strong></span>
             </div>
-            <button class="btn btn-secondary btn-small" id="logoutBtn">Выход</button>
+            <button class="btn btn-secondary btn-small" id="logoutBtn">Logout</button>
         </div>
     </aside>
 
@@ -51,7 +51,7 @@
             </div>
             <div class="header-right">
                 <span class="last-update" id="lastUpdate"></span>
-                <span class="status-badge" id="statusBadge">Офлайн</span>
+                <span class="status-badge" id="statusBadge">Offline</span>
             </div>
         </header>
 
@@ -64,24 +64,24 @@
 
                     <!-- Connection card -->
                     <div class="card" style="flex-shrink:0;">
-                        <div class="card-title">Подключение к ПЛК</div>
+                        <div class="card-title">PLC Connection</div>
                         <div class="card-body">
                             <div class="form-row" style="margin-bottom:0;">
                                 <label>IP</label>
                                 <input type="text" id="ipInput" placeholder="192.168.1.100" style="min-width:160px;" />
                                 <label>Slot</label>
                                 <input type="number" id="slotInput" value="0" min="0" max="15" style="width:70px;" />
-                                <button class="btn" id="connectBtn">Подключить</button>
-                                <button class="btn btn-emulator" id="emulatorBtn" title="Подключить эмулятор ПЛК (3 синтетических тега)">Эмулятор</button>
+                                <button class="btn" id="connectBtn">Connect</button>
+                                <button class="btn btn-emulator" id="emulatorBtn" title="Connect PLC emulator (3 synthetic tags)">Emulator</button>
                                 <label class="checkbox-label" style="white-space:nowrap; margin-left:4px;">
-                                    <input type="checkbox" id="autoConnectCheck" /> Авто-подключение
+                                    <input type="checkbox" id="autoConnectCheck" /> Auto-connect
                                 </label>
                             </div>
                             <div id="alertContainer" style="margin-top:6px;"></div>
                             <div class="history-section" style="margin-top:8px;">
-                                <div class="history-title">История (10):</div>
+                                <div class="history-title">History (10):</div>
                                 <div class="history-list" id="historyList">
-                                    <div style="color:var(--fg-muted);font-size:11px;text-align:center;padding:6px;">Пусто</div>
+                                    <div style="color:var(--fg-muted);font-size:11px;text-align:center;padding:6px;">Empty</div>
                                 </div>
                             </div>
                         </div>
@@ -89,9 +89,9 @@
 
                     <!-- Search / filter toolbar -->
                     <div class="diag-toolbar">
-                        <input type="text" id="diagSearch" placeholder="Поиск тега..." />
+                        <input type="text" id="diagSearch" placeholder="Search tag..." />
                         <select id="diagTypeFilter">
-                            <option value="">Все типы</option>
+                            <option value="">All types</option>
                             <option value="BOOL">BOOL</option>
                             <option value="DINT">DINT</option>
                             <option value="REAL">REAL</option>
@@ -99,11 +99,11 @@
                             <option value="SINT">SINT</option>
                             <option value="LINT">LINT</option>
                             <option value="STRING">STRING</option>
-                            <option value="IO_IN">— Входы (I)</option>
-                            <option value="IO_OUT">— Выходы (O)</option>
+                            <option value="IO_IN">— Inputs (I)</option>
+                            <option value="IO_OUT">— Outputs (O)</option>
                         </select>
                         <label class="checkbox-label">
-                            <input type="checkbox" id="diagFavOnly" /> ★ Только избранные
+                            <input type="checkbox" id="diagFavOnly" /> ★ Favorites only
                         </label>
                     </div>
 
@@ -114,8 +114,8 @@
                     <div id="diagTableWrap">
                         <div class="empty-state">
                             <div class="empty-state-icon">⚡</div>
-                            <div>Подключитесь к ПЛК</div>
-                            <div style="font-size:11px;margin-top:8px;color:var(--fg-muted);">Введите IP адрес и нажмите «Подключить»</div>
+                            <div>Connect to PLC</div>
+                            <div style="font-size:11px;margin-top:8px;color:var(--fg-muted);">Enter the IP address and click "Connect"</div>
                         </div>
                     </div>
                 </div>
@@ -124,31 +124,31 @@
                 <div id="controlView" class="full-view" style="display:none;">
                     <div class="card">
                         <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
-                            <span>Контрольная панель</span>
+                            <span>Control Panel</span>
                             <div style="display:flex; gap:8px;">
-                                <button class="btn btn-secondary btn-small" id="ctrlModeBtn">Режим правки</button>
+                                <button class="btn btn-secondary btn-small" id="ctrlModeBtn">Edit mode</button>
                             </div>
                         </div>
                         <div class="card-body" id="ctrlEditForm" style="display:none; border-bottom:1px solid var(--border); margin-bottom:0;">
                             <div class="form-row">
-                                <label>Тип</label>
+                                <label>Type</label>
                                 <select id="ctrlWType">
-                                    <option value="momentary_button">Кнопка (удерж.)</option>
-                                    <option value="maintained_button">Кнопка (фикс.)</option>
-                                    <option value="indicator">Индикатор</option>
-                                    <option value="numeric_display">Числовой индикатор</option>
-                                    <option value="numeric_input">Числовой ввод</option>
-                                    <option value="string_display">Текст (строка)</option>
-                                    <option value="section">── Секция (заголовок) ──</option>
+                                    <option value="momentary_button">Button (momentary)</option>
+                                    <option value="maintained_button">Button (maintained)</option>
+                                    <option value="indicator">Indicator</option>
+                                    <option value="numeric_display">Numeric display</option>
+                                    <option value="numeric_input">Numeric input</option>
+                                    <option value="string_display">Text (string)</option>
+                                    <option value="section">── Section (header) ──</option>
                                 </select>
-                                <label>Метка</label>
-                                <input type="text" id="ctrlWLabel" placeholder="Старт" style="width:120px;" />
-                                <label id="ctrlTagLabel">Тег</label>
+                                <label>Label</label>
+                                <input type="text" id="ctrlWLabel" placeholder="Start" style="width:120px;" />
+                                <label id="ctrlTagLabel">Tag</label>
                                 <select id="ctrlWTag" style="min-width:200px;"></select>
-                                <label id="ctrlIndTagLabel" style="display:none;">Индикатор</label>
+                                <label id="ctrlIndTagLabel" style="display:none;">Indicator</label>
                                 <select id="ctrlWIndicatorTag" style="min-width:200px; display:none;"></select>
-                                <label class="ctrl-fav-label"><input type="checkbox" id="ctrlFavOnly"> ★ Избранные</label>
-                                <button class="btn btn-small" id="ctrlAddWidgetBtn">+ Добавить</button>
+                                <label class="ctrl-fav-label"><input type="checkbox" id="ctrlFavOnly"> ★ Favorites</label>
+                                <button class="btn btn-small" id="ctrlAddWidgetBtn">+ Add</button>
                             </div>
                         </div>
                     </div>
@@ -158,27 +158,27 @@
                 <!-- Collector / Tag selection -->
                 <div id="collectorView" class="full-view" style="display:none;">
                     <div class="card">
-                        <div class="card-title">Статус коллектора</div>
+                        <div class="card-title">Collector Status</div>
                         <div class="card-body" id="collectorStatusBody">
                             <div class="status-grid">
                                 <div class="status-cell">
-                                    <div class="status-label">Состояние</div>
+                                    <div class="status-label">Status</div>
                                     <div class="status-value" id="collState">—</div>
                                 </div>
                                 <div class="status-cell">
-                                    <div class="status-label">ПЛК</div>
+                                    <div class="status-label">PLC</div>
                                     <div class="status-value" id="collPlcIp">—</div>
                                 </div>
                                 <div class="status-cell">
-                                    <div class="status-label">Опросов</div>
+                                    <div class="status-label">Polls</div>
                                     <div class="status-value" id="collPolls">0</div>
                                 </div>
                                 <div class="status-cell">
-                                    <div class="status-label">Записей</div>
+                                    <div class="status-label">Writes</div>
                                     <div class="status-value" id="collWrites">0</div>
                                 </div>
                                 <div class="status-cell">
-                                    <div class="status-label">Ошибок</div>
+                                    <div class="status-label">Errors</div>
                                     <div class="status-value" id="collErrors">0</div>
                                 </div>
                                 <div class="status-cell">
@@ -187,59 +187,59 @@
                                 </div>
                             </div>
                             <div class="card-actions">
-                                <button class="btn" id="collStartBtn">▶ Запустить</button>
-                                <button class="btn btn-secondary" id="collStopBtn">■ Остановить</button>
+                                <button class="btn" id="collStartBtn">▶ Start</button>
+                                <button class="btn btn-secondary" id="collStopBtn">■ Stop</button>
                                 <span class="muted" id="collLastError"></span>
                             </div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <div class="card-title">Настройки</div>
+                        <div class="card-title">Settings</div>
                         <div class="card-body">
                             <div class="form-row">
-                                <label>IP ПЛК</label>
+                                <label>PLC IP</label>
                                 <input type="text" id="collIpInput" placeholder="192.168.1.100" />
                                 <label>Slot</label>
                                 <input type="number" id="collSlotInput" min="0" max="15" value="0" style="width:70px;" />
                             </div>
                             <div class="form-row">
-                                <label>Интервал опроса (мс)</label>
+                                <label>Poll interval (ms)</label>
                                 <input type="number" id="collPollInput" min="50" max="10000" value="100" style="width:100px;" />
                                 <label class="checkbox-label">
                                     <input type="checkbox" id="collAutostart" />
-                                    Автозапуск при старте Pi
+                                    Auto-start on Pi boot
                                 </label>
                             </div>
                             <div class="card-actions">
-                                <button class="btn" id="collSaveSettingsBtn">Сохранить настройки</button>
+                                <button class="btn" id="collSaveSettingsBtn">Save settings</button>
                             </div>
                         </div>
                     </div>
 
                     <div class="card">
                         <div class="card-title">
-                            Теги для сбора <span class="muted" id="cfgCounter">(0)</span>
+                            Tags for collection <span class="muted" id="cfgCounter">(0)</span>
                         </div>
                         <div class="card-body">
                             <div class="card-actions" style="margin-bottom: 12px;">
-                                <button class="btn" id="cfgAddFromPlcBtn">+ Добавить из ПЛК</button>
-                                <button class="btn btn-secondary" id="cfgRefreshBtn">Обновить</button>
-                                <span class="muted">Подключитесь к ПЛК на вкладке «ПЛК», затем добавляйте теги в сбор.</span>
+                                <button class="btn" id="cfgAddFromPlcBtn">+ Add from PLC</button>
+                                <button class="btn btn-secondary" id="cfgRefreshBtn">Refresh</button>
+                                <span class="muted">Connect to PLC on the "PLC" tab, then add tags to collection.</span>
                             </div>
                             <table class="data-table" id="cfgTable">
                                 <thead>
                                     <tr>
-                                        <th style="width: 40%;">Тег</th>
-                                        <th>Тип</th>
-                                        <th>Режим</th>
-                                        <th>Параметр</th>
-                                        <th>Активен</th>
+                                        <th style="width: 40%;">Tag</th>
+                                        <th>Type</th>
+                                        <th>Mode</th>
+                                        <th>Parameter</th>
+                                        <th>Active</th>
                                         <th></th>
                                     </tr>
                                 </thead>
                                 <tbody id="cfgTableBody">
-                                    <tr><td colspan="6" class="empty-row">Список пуст</td></tr>
+                                    <tr><td colspan="6" class="empty-row">List is empty</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -249,52 +249,52 @@
                 <!-- Dashboards -->
                 <div id="dashboardsView" class="full-view" style="display:none;">
                     <div class="card">
-                        <div class="card-title">Дашборды</div>
+                        <div class="card-title">Dashboards</div>
                         <div class="card-body">
                             <div class="form-row">
-                                <label>Текущий</label>
+                                <label>Current</label>
                                 <select id="dashSelect"></select>
-                                <button class="btn btn-secondary btn-small" id="dashNewBtn">+ Новый</button>
-                                <button class="btn btn-secondary btn-small" id="dashRenameBtn">Переименовать</button>
-                                <button class="btn btn-secondary btn-small" id="dashDeleteBtn">Удалить</button>
-                                <button class="btn btn-secondary btn-small" id="dashRefreshBtn">Обновить</button>
+                                <button class="btn btn-secondary btn-small" id="dashNewBtn">+ New</button>
+                                <button class="btn btn-secondary btn-small" id="dashRenameBtn">Rename</button>
+                                <button class="btn btn-secondary btn-small" id="dashDeleteBtn">Delete</button>
+                                <button class="btn btn-secondary btn-small" id="dashRefreshBtn">Refresh</button>
                             </div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <div class="card-title">Добавить виджет</div>
+                        <div class="card-title">Add widget</div>
                         <div class="card-body">
                             <div class="form-row">
-                                <label>Тег</label>
+                                <label>Tag</label>
                                 <select id="widTag" style="min-width: 220px;"></select>
-                                <label>Тип</label>
+                                <label>Type</label>
                                 <select id="widType">
-                                    <option value="line_chart">График</option>
-                                    <option value="gauge">Шкала</option>
-                                    <option value="stat">Число</option>
-                                    <option value="table">Таблица</option>
+                                    <option value="line_chart">Chart</option>
+                                    <option value="gauge">Gauge</option>
+                                    <option value="stat">Number</option>
+                                    <option value="table">Table</option>
                                 </select>
-                                <label>Период</label>
+                                <label>Period</label>
                                 <select id="widRange">
-                                    <option value="realtime">Реальное время</option>
-                                    <option value="-15m">15 мин</option>
-                                    <option value="-1h" selected>1 час</option>
-                                    <option value="-6h">6 часов</option>
-                                    <option value="-24h">24 часа</option>
-                                    <option value="-7d">7 дней</option>
-                                    <option value="-30d">30 дней</option>
+                                    <option value="realtime">Real time</option>
+                                    <option value="-15m">15 min</option>
+                                    <option value="-1h" selected>1 hour</option>
+                                    <option value="-6h">6 hours</option>
+                                    <option value="-24h">24 hours</option>
+                                    <option value="-7d">7 days</option>
+                                    <option value="-30d">30 days</option>
                                 </select>
-                                <label>Агрегация</label>
+                                <label>Aggregation</label>
                                 <select id="widAgg">
-                                    <option value="">— (как есть)</option>
+                                    <option value="">— (as is)</option>
                                     <option value="mean">mean</option>
                                     <option value="min">min</option>
                                     <option value="max">max</option>
                                     <option value="last">last</option>
                                     <option value="sum">sum</option>
                                 </select>
-                                <button class="btn" id="widAddBtn">+ Добавить</button>
+                                <button class="btn" id="widAddBtn">+ Add</button>
                             </div>
                         </div>
                     </div>
@@ -308,33 +308,33 @@
                 <!-- AI Analytics -->
                 <div id="aiView" class="full-view" style="display:none;">
                     <div class="card" style="flex-shrink:0;">
-                        <div class="card-title">ИИ-анализ данных ПЛК</div>
+                        <div class="card-title">AI Analytics — PLC Data</div>
                         <div class="card-body">
                             <div class="form-row">
-                                <label>Период</label>
+                                <label>Period</label>
                                 <select id="aiTimeRange">
-                                    <option value="-1h">1 час</option>
-                                    <option value="-8h" selected>8 часов</option>
-                                    <option value="-24h">24 часа</option>
-                                    <option value="-7d">7 дней</option>
+                                    <option value="-1h">1 hour</option>
+                                    <option value="-8h" selected>8 hours</option>
+                                    <option value="-24h">24 hours</option>
+                                    <option value="-7d">7 days</option>
                                 </select>
                                 <label class="checkbox-label">
-                                    <input type="checkbox" id="aiFavOnly" /> ★ Только избранные
+                                    <input type="checkbox" id="aiFavOnly" /> ★ Favorites only
                                 </label>
                             </div>
                             <div class="card-actions" style="margin-top:10px;">
-                                <button class="btn" id="aiAnomaliesBtn">⚡ Аномалии</button>
-                                <button class="btn btn-secondary" id="aiDiagnosticsBtn">Диагностика</button>
-                                <button class="btn btn-secondary" id="aiReportBtn">Отчёт</button>
-                                <button class="btn btn-secondary btn-small" id="aiStopBtn" style="display:none;">✕ Стоп</button>
+                                <button class="btn" id="aiAnomaliesBtn">⚡ Anomalies</button>
+                                <button class="btn btn-secondary" id="aiDiagnosticsBtn">Diagnostics</button>
+                                <button class="btn btn-secondary" id="aiReportBtn">Report</button>
+                                <button class="btn btn-secondary btn-small" id="aiStopBtn" style="display:none;">✕ Stop</button>
                             </div>
                         </div>
                     </div>
 
                     <div class="card" id="aiResultCard" style="display:none;">
                         <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
-                            <span id="aiResultTitle">Результат</span>
-                            <button class="btn btn-secondary btn-small" id="aiCopyBtn">Копировать</button>
+                            <span id="aiResultTitle">Result</span>
+                            <button class="btn btn-secondary btn-small" id="aiCopyBtn">Copy</button>
                         </div>
                         <div class="card-body">
                             <div id="aiOutput" style="white-space:pre-wrap; font-size:13px; line-height:1.7; min-height:60px;"></div>

@@ -35,11 +35,11 @@ window.Recipes = (() => {
         view.innerHTML = `
 <div class="recipe-layout">
   <aside class="recipe-sb">
-    <div class="recipe-sb-head">Рецепты (UDT)</div>
+    <div class="recipe-sb-head">Recipes (UDT)</div>
     <div id="recipeList" class="recipe-list">
-      <div class="recipe-empty">Подключитесь к ПЛК</div>
+      <div class="recipe-empty">Connect to PLC</div>
     </div>
-    <div class="recipe-sb-head" style="border-top:1px solid var(--border);">Снимки</div>
+    <div class="recipe-sb-head" style="border-top:1px solid var(--border);">Snapshots</div>
     <div id="snapshotList" class="snapshot-list">
       <div class="recipe-empty">—</div>
     </div>
@@ -47,8 +47,8 @@ window.Recipes = (() => {
   <main class="recipe-main" id="recipeMain">
     <div class="recipe-empty-state">
       <div style="font-size:40px;opacity:0.25;">📋</div>
-      <div>Выберите рецепт из списка слева</div>
-      <div style="font-size:11px;margin-top:4px;color:var(--fg-muted);">UDT теги появятся после подключения к ПЛК</div>
+      <div>Select a recipe from the list on the left</div>
+      <div style="font-size:11px;margin-top:4px;color:var(--fg-muted);">UDT tags will appear after connecting to PLC</div>
     </div>
   </main>
 </div>`;
@@ -109,18 +109,18 @@ window.Recipes = (() => {
             if (!r.ok) return;
             const changes = await r.json();
             if (!changes.length) {
-                wrap.innerHTML = '<div class="recipe-empty">Нет записей</div>';
+                wrap.innerHTML = '<div class="recipe-empty">No records</div>';
                 return;
             }
             wrap.innerHTML = `<table class="data-table" style="font-size:11px;">
   <thead><tr>
-    <th style="width:90px;">Время</th>
-    <th>Поле</th>
-    <th style="width:100px;">Было</th>
-    <th style="width:100px;">Стало</th>
+    <th style="width:90px;">Time</th>
+    <th>Field</th>
+    <th style="width:100px;">Was</th>
+    <th style="width:100px;">Now</th>
   </tr></thead>
   <tbody>${changes.map(c => {
-    const dt = new Date(c.changed_at).toLocaleTimeString('ru-RU');
+    const dt = new Date(c.changed_at).toLocaleTimeString();
     const short = c.member.includes('.') ? c.member.split('.').slice(1).join('.') : c.member;
     return `<tr>
       <td style="font-family:var(--font-mono);">${esc(dt)}</td>
@@ -149,14 +149,14 @@ window.Recipes = (() => {
         const el = document.getElementById('recipeList');
         if (!el) return;
         if (!recipesList.length) {
-            el.innerHTML = '<div class="recipe-empty">UDT теги не найдены</div>';
+            el.innerHTML = '<div class="recipe-empty">No UDT tags found</div>';
             return;
         }
         el.innerHTML = recipesList.map(r => `
 <div class="recipe-list-item${currentRecipe === r.name ? ' active' : ''}"
      data-name="${ea(r.name)}" onclick="Recipes._select('${ea(r.name)}')">
   <div class="recipe-item-name">${esc(r.name)}</div>
-  <div class="recipe-item-meta">${esc(r.udt_type)} · ${r.member_count} полей</div>
+  <div class="recipe-item-meta">${esc(r.udt_type)} · ${r.member_count} fields</div>
 </div>`).join('');
     }
 
@@ -164,19 +164,19 @@ window.Recipes = (() => {
         const el = document.getElementById('snapshotList');
         if (!el) return;
         if (!snapshots.length) {
-            el.innerHTML = '<div class="recipe-empty">Нет снимков</div>';
+            el.innerHTML = '<div class="recipe-empty">No snapshots</div>';
             return;
         }
         el.innerHTML = snapshots.map(s => {
-            const dt = new Date(s.created_at).toLocaleString('ru-RU',
+            const dt = new Date(s.created_at).toLocaleString(undefined,
                 { dateStyle: 'short', timeStyle: 'short' });
             const loaded = baseline && baseline.id === s.id;
             return `<div class="snapshot-item${loaded ? ' loaded' : ''}">
-  <div class="snapshot-item-info" onclick="Recipes._loadSnap(${s.id})" title="Загрузить как базовую линию">
+  <div class="snapshot-item-info" onclick="Recipes._loadSnap(${s.id})" title="Load as baseline">
     <div class="snapshot-label">${esc(s.label)}</div>
     <div class="snapshot-dt">${dt}</div>
   </div>
-  <button class="snapshot-del-btn" onclick="Recipes._delSnap(${s.id})" title="Удалить">×</button>
+  <button class="snapshot-del-btn" onclick="Recipes._delSnap(${s.id})" title="Delete">×</button>
 </div>`;
         }).join('');
     }
@@ -188,23 +188,23 @@ window.Recipes = (() => {
 <div class="recipe-toolbar">
   <span class="recipe-toolbar-name">${esc(currentRecipe)}</span>
   <div class="recipe-toolbar-right">
-    <button class="btn btn-secondary btn-small" onclick="Recipes._saveSnap()">Сохранить снимок</button>
+    <button class="btn btn-secondary btn-small" onclick="Recipes._saveSnap()">Save snapshot</button>
     <button class="btn btn-secondary btn-small${baseline ? ' rcp-baseline-active' : ''}"
             id="rcpClearBtn"
             onclick="Recipes._clearBaseline()"
             ${baseline ? '' : 'disabled'}>
-      ${baseline ? `Базовая: ${esc(baseline.label)} &nbsp;×` : 'Нет базовой линии'}
+      ${baseline ? `Baseline: ${esc(baseline.label)} &nbsp;×` : 'No baseline'}
     </button>
     <label class="recipe-track-toggle">
       <input type="checkbox" id="trackToggle" ${tracking ? 'checked' : ''}
              onchange="Recipes._setTrack(this.checked)">
-      Отслеживать изменения
+      Track changes
     </label>
   </div>
 </div>
 <div id="monitorTableWrap" class="monitor-table-wrap"></div>
 <div id="changeLogWrap" class="recipe-changes-section" style="${tracking ? '' : 'display:none;'}">
-  <div class="recipe-changes-title">Журнал изменений</div>
+  <div class="recipe-changes-title">Change log</div>
   <div id="changeLogTable"><div class="recipe-empty">—</div></div>
 </div>`;
     }
@@ -214,7 +214,7 @@ window.Recipes = (() => {
         if (!wrap) return;
 
         if (!liveMembers.length) {
-            wrap.innerHTML = '<div class="recipe-empty" style="padding:30px;">Нет членов UDT. Возможно, pylogix не может прочитать структуру этого типа.</div>';
+            wrap.innerHTML = '<div class="recipe-empty" style="padding:30px;">No UDT members. pylogix may not be able to read the structure of this type.</div>';
             return;
         }
 
@@ -229,19 +229,19 @@ window.Recipes = (() => {
                 m.name in baseline.values && !valsEqual(m.value, baseline.values[m.name])).length;
             changedCount = changed;
             html += `<div class="mon-summary">
-  Базовая линия: <strong>${esc(baseline.label)}</strong>
+  Baseline: <strong>${esc(baseline.label)}</strong>
   <span id="monChangedSummary" style="margin-left:12px;color:${changed > 0 ? 'var(--dot-error)' : 'var(--dot-success)'};">
-    ${changed > 0 ? `${changed} изменений из ${total}` : 'Без изменений'}
+    ${changed > 0 ? `${changed} changes out of ${total}` : 'No changes'}
   </span>
 </div>`;
         }
 
         html += `<table class="recipe-monitor-table data-table">
 <thead><tr>
-  <th>Поле</th>
-  <th style="width:70px;">Тип</th>
-  <th style="width:130px;">Значение</th>
-  ${hasBase ? '<th style="width:130px;">Базовая</th><th style="width:32px;text-align:center;"></th>' : ''}
+  <th>Field</th>
+  <th style="width:70px;">Type</th>
+  <th style="width:130px;">Value</th>
+  ${hasBase ? '<th style="width:130px;">Baseline</th><th style="width:32px;text-align:center;"></th>' : ''}
 </tr></thead>
 <tbody>`;
 
@@ -294,8 +294,8 @@ window.Recipes = (() => {
     }
 
     async function _saveSnap() {
-        const defaultLabel = `Снимок ${new Date().toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}`;
-        const label = prompt('Название снимка:', defaultLabel);
+        const defaultLabel = `Snapshot ${new Date().toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}`;
+        const label = prompt('Snapshot name:', defaultLabel);
         if (label === null) return;
         const values = {};
         for (const m of liveMembers) values[m.name] = m.value;
@@ -319,7 +319,7 @@ window.Recipes = (() => {
     }
 
     async function _delSnap(id) {
-        if (!confirm('Удалить снимок?')) return;
+        if (!confirm('Delete snapshot?')) return;
         try {
             await fetch(`/api/recipes/snapshots/${id}`, { method: 'DELETE' });
             if (baseline && baseline.id === id) baseline = null;
