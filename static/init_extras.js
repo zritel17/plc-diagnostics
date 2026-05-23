@@ -251,6 +251,19 @@
         });
     }
 
+    // ── SIDEBAR TOGGLE ───────────────────────────────────────────────────────
+    (function() {
+        const app = document.querySelector('.pkl-app');
+        const btn = document.getElementById('sidebarToggle');
+        if (!app || !btn) return;
+        const key = 'plc_sidebar_hidden';
+        if (localStorage.getItem(key) === '1') app.classList.add('sidebar-hidden');
+        btn.addEventListener('click', () => {
+            const hidden = app.classList.toggle('sidebar-hidden');
+            localStorage.setItem(key, hidden ? '1' : '0');
+        });
+    })();
+
     // ── KIOSK CLOSE ──────────────────────────────────────────────────────────
     if (new URLSearchParams(location.search).get('kiosk') === '1') {
         localStorage.setItem('plc_kiosk', '1');
