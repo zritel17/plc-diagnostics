@@ -197,13 +197,7 @@ body {
 .btn-burger:hover { background: var(--hover-bg); color: var(--fg); }
 
 /* Sidebar collapsed state */
-.pkl-app.sidebar-hidden .pkl-sidebar {
-  width: 0;
-  min-width: 0;
-  overflow: hidden;
-  padding: 0;
-  border: none;
-}
+.pkl-app.sidebar-hidden .pkl-sidebar { display: none; }
 .header-stats { display: flex; gap: 6px; }
 .header-stat {
   background: var(--surface-2);
