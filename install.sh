@@ -153,6 +153,17 @@ update-desktop-database /usr/share/applications 2>/dev/null || true
 mkdir -p /etc/xdg/autostart
 cp /usr/share/applications/plc-gateway-display.desktop /etc/xdg/autostart/
 
+# wvkbd — on-screen keyboard for touchscreen (autostart)
+if command -v wvkbd-mobintl &>/dev/null; then
+    cat > /etc/xdg/autostart/wvkbd.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=wvkbd
+Exec=wvkbd-mobintl --hidden
+Terminal=false
+EOF
+fi
+
 # Desktop shortcut (native window)
 DESKTOP_DIR="$ACTUAL_HOME/Desktop"
 if [[ -d "$DESKTOP_DIR" ]]; then

@@ -3,7 +3,7 @@ Version=1.0
 Type=Application
 Name=PLC Gateway
 Comment=Allen-Bradley PLC monitoring and control
-Exec=chromium --kiosk --disable-features=Translate --noerrdialogs --disable-infobars --disk-cache-size=1 http://localhost:5000?kiosk=1
+Exec=chromium --app=http://localhost:5000?kiosk=1 --start-maximized --disable-features=Translate --noerrdialogs --disable-infobars --disk-cache-size=1
 Icon=/home/pi/plc-diagnostics/static/assets/logo-glyph.svg
 Terminal=false
 Categories=Utility;
