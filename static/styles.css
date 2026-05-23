@@ -53,7 +53,7 @@ body {
    ===================================================================== */
 .pkl-app {
   display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-columns: auto 1fr;
   grid-template-rows: 100vh;
   height: 100vh;
   width: 100%;
@@ -65,6 +65,7 @@ body {
    SIDEBAR
    ===================================================================== */
 .pkl-sidebar {
+  width: var(--sidebar-w);
   height: 100vh;
   border-right: 1px solid var(--border);
   padding: 16px 12px;
@@ -72,6 +73,7 @@ body {
   flex-direction: column;
   gap: 4px;
   overflow: hidden;
+  transition: width 0.2s ease, padding 0.2s ease;
   background: var(--bg);
 }
 
@@ -195,8 +197,13 @@ body {
 .btn-burger:hover { background: var(--hover-bg); color: var(--fg); }
 
 /* Sidebar collapsed state */
-.pkl-app.sidebar-hidden { grid-template-columns: 0 1fr; }
-.pkl-app.sidebar-hidden .pkl-sidebar { display: none; }
+.pkl-app.sidebar-hidden .pkl-sidebar {
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+}
 .header-stats { display: flex; gap: 6px; }
 .header-stat {
   background: var(--surface-2);
