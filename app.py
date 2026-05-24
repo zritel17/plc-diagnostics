@@ -144,6 +144,21 @@ _write_plc = None        # dedicated write connection (write_tag only)
 _write_lock = asyncio.Lock()  # serializes concurrent writes
 current_ip = None
 current_slot = 0
+
+# ── WebSocket broadcast ──────────────────────────────────────────────────────
+_ws_queues: list = []  # asyncio.Queue per connected WS client
+
+def _ws_broadcast(msg: dict) -> None:
+    for q in list(_ws_queues):
+        try:
+            q.put_nowait(msg)
+        except Exception:
+            pass
+
+def _plc_state_msg() -> dict:
+    if not current_plc:
+        return {"type": "connection_state", "status": "offline", "ip": None, "slot": None}
+    return {"type": "connection_state", "status": "online", "ip": current_ip, "slot": current_slot}
 all_tags_raw = []
 tag_structure = {}
 io_modules = []
@@ -558,6 +573,7 @@ async def connect(request: PLCConnectRequest):
         current_slot = slot
 
         add_to_history(ip, slot, "success")
+        _ws_broadcast(_plc_state_msg())
 
         return {
             "status": "connected",
@@ -599,6 +615,7 @@ async def disconnect():
     _tags_cache = None
     _io_cache = None
 
+    _ws_broadcast(_plc_state_msg())
     return {"status": "disconnected"}
 
 @app.post("/api/emulator/connect")
@@ -642,6 +659,7 @@ async def emulator_connect():
 
     _emulator_mode = True
     asyncio.create_task(_emulator_bg_tick())
+    _ws_broadcast(_plc_state_msg())
 
     return {
         "status": "connected",
@@ -1233,22 +1251,42 @@ async def ws_live(ws: WebSocket, token: str = ""):
         await ws.close(code=4001)
         return
     await ws.accept()
-    q = collector.subscribe()
+
+    merged_q: asyncio.Queue = asyncio.Queue(maxsize=500)
+    _ws_queues.append(merged_q)
+    tag_q = collector.subscribe()
+
+    async def _fwd_tags():
+        while True:
+            msg = await tag_q.get()
+            try:
+                merged_q.put_nowait({"type": "tag_update", "data": msg})
+            except asyncio.QueueFull:
+                pass
+
+    fwd = asyncio.create_task(_fwd_tags(), name="ws-fwd")
     try:
-        await ws.send_json({"type": "status", "data": collector.stats()})
+        await ws.send_json(_plc_state_msg())
+        await ws.send_json({"type": "collector_status", "data": collector.stats()})
         while not (shutdown_event and shutdown_event.is_set()):
             try:
-                msg = await asyncio.wait_for(q.get(), timeout=15)
-                await ws.send_json({"type": "tag_update", "data": msg})
+                msg = await asyncio.wait_for(merged_q.get(), timeout=15)
+                await ws.send_json(msg)
             except asyncio.TimeoutError:
-                # heartbeat — заодно даёт WS обнаружить мёртвое соединение
                 await ws.send_json({"type": "ping"})
     except WebSocketDisconnect:
         pass
     except Exception as e:
         print(f"[WS] error: {e}")
     finally:
-        collector.unsubscribe(q)
+        fwd.cancel()
+        try:
+            await fwd
+        except asyncio.CancelledError:
+            pass
+        collector.unsubscribe(tag_q)
+        if merged_q in _ws_queues:
+            _ws_queues.remove(merged_q)
         try:
             await ws.close()
         except Exception:

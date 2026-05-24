@@ -1044,27 +1044,48 @@ function stopAutoRefresh() {
     updateInterval = null;
 }
 
+// Глобальный API для синхронизации состояния подключения из WS / init_extras.js
+window.setConnectionState = function(status, ip, slot) {
+    if (status === 'online' && !isConnected) {
+        isConnected = true;
+        window.isConnected = true;
+        if (ip && ip !== 'EMULATOR' && ipInput) ipInput.value = ip;
+        if (slot != null && slotInput) slotInput.value = slot;
+        updateStatus('online', ip, slot);
+        connectBtn.textContent = 'Disconnect';
+        connectBtn.classList.add('btn-danger');
+        if (ip === 'EMULATOR' && emulatorBtn) {
+            emulatorBtn.textContent = 'Disconnect';
+            emulatorBtn.classList.add('active', 'btn-danger');
+        }
+        needsFullRender = true;
+        loadTags();
+        loadIO();
+        startAutoRefresh();
+    } else if (status === 'offline' && isConnected) {
+        isConnected = false;
+        window.isConnected = false;
+        stopAutoRefresh();
+        updateStatus('offline');
+        connectBtn.textContent = 'Connect';
+        connectBtn.classList.remove('btn-danger');
+        if (emulatorBtn) {
+            emulatorBtn.textContent = 'Emulator';
+            emulatorBtn.classList.remove('active', 'btn-danger');
+        }
+        tagsData = {};
+        ioData = [];
+        needsFullRender = true;
+        render();
+    }
+};
+
 async function syncServerState() {
     try {
         const r = await fetch(`${API_BASE}/api/status`);
         if (!r.ok) return;
         const s = await r.json();
-        if (s.status !== 'online') return;
-        // Сервер уже подключён — синхронизируем UI без повторного connect()
-        isConnected = true;
-        if (s.ip && s.ip !== 'EMULATOR' && ipInput) ipInput.value = s.ip;
-        if (s.slot != null && slotInput) slotInput.value = s.slot;
-        updateStatus('online', s.ip, s.slot);
-        connectBtn.textContent = 'Disconnect';
-        connectBtn.classList.add('btn-danger');
-        if (s.ip === 'EMULATOR' && emulatorBtn) {
-            emulatorBtn.textContent = 'Disconnect';
-            emulatorBtn.classList.add('active', 'btn-danger');
-        }
-        needsFullRender = true;
-        await loadTags();
-        await loadIO();
-        startAutoRefresh();
+        window.setConnectionState(s.status, s.ip, s.slot);
     } catch (_) {}
 }
 

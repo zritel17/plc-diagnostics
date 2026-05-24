@@ -159,6 +159,10 @@
                                 document.getElementById('collectorView')?.style.display === 'flex';
                             if (collectorVisible && window.Collector) Collector.fetchStatus();
                         }
+                    } else if (msg.type === 'connection_state') {
+                        if (typeof window.setConnectionState === 'function') {
+                            window.setConnectionState(msg.status, msg.ip, msg.slot);
+                        }
                     }
                 } catch (e) { /* ignore */ }
             };
