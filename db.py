@@ -252,7 +252,7 @@ class InfluxClient:
             f'  |> filter(fn: (r) => r._measurement == "tag_values" '
             f'and r.tag_name == "{tag_name}" and r._field == "value")\n'
             f'{agg_clause}'
-            f'  |> limit(n: {max_points})'
+            f'  |> tail(n: {max_points})'
         )
         try:
             tables = self._query_api.query(flux, org=INFLUX_ORG)

@@ -169,6 +169,7 @@ _io_cache = None              # последний успешный ответ /
 
 _emulator_mode = False
 _emulator_values: dict = {}
+_emulator_task: asyncio.Task = None
 
 class _EmulatorPLC:
     """Sentinel object that replaces real PLC when emulator is active."""
@@ -657,8 +658,11 @@ async def emulator_connect():
     _tags_cache = None
     _io_cache = []
 
+    global _emulator_task
     _emulator_mode = True
-    asyncio.create_task(_emulator_bg_tick())
+    if _emulator_task and not _emulator_task.done():
+        _emulator_task.cancel()
+    _emulator_task = asyncio.create_task(_emulator_bg_tick())
     _ws_broadcast(_plc_state_msg())
 
     return {
@@ -944,8 +948,7 @@ async def _emulator_bg_tick():
         _tags_cache = {"tags": _build_tags_result(_emulator_values), "last_update": ts}
         _io_cache = []
         last_update = ts
-        # Пишем в InfluxDB каждую секунду (каждые 10 тиков по 100 мс)
-        if influx.available and tick % 10 == 0:
+        if influx.available:
             ts_dt = datetime.utcnow()
             for _tag, _val in _emulator_values.items():
                 await asyncio.to_thread(
