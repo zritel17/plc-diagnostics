@@ -8,6 +8,14 @@
     const token = localStorage.getItem('plc_token') || '';
     if (!token) { window.location.href = '/login'; return; }
 
+    // ── KIOSK / PI MODE ───────────────────────────────────────────────────────
+    const _isKiosk = new URLSearchParams(location.search).get('kiosk') === '1'
+        || localStorage.getItem('plc_kiosk') === '1';
+    if (_isKiosk) {
+        localStorage.setItem('plc_kiosk', '1');
+        document.body.classList.add('kiosk', 'embedded');
+    }
+
     // Оборачиваем fetch: добавляем Authorization, перехватываем 401
     const _origFetch = window.fetch.bind(window);
     window.fetch = function(url, opts) {
@@ -350,10 +358,34 @@
         const app = document.querySelector('.pkl-app');
         const btn = document.getElementById('sidebarToggle');
         if (!app || !btn) return;
-        if (localStorage.getItem('plc_sidebar_hidden') === '1') app.classList.add('sidebar-hidden');
+
+        const backdrop = document.getElementById('sidebarBackdrop');
+
+        function openSidebar() {
+            app.classList.remove('sidebar-hidden');
+            if (backdrop) backdrop.classList.add('active');
+        }
+        function closeSidebar() {
+            app.classList.add('sidebar-hidden');
+            if (backdrop) backdrop.classList.remove('active');
+            if (!_isKiosk) localStorage.setItem('plc_sidebar_hidden', '1');
+        }
+
+        if (_isKiosk) {
+            app.classList.add('sidebar-hidden');
+            if (backdrop) backdrop.addEventListener('click', closeSidebar);
+            document.querySelectorAll('.tab').forEach(t =>
+                t.addEventListener('click', () => setTimeout(closeSidebar, 150))
+            );
+        } else {
+            if (localStorage.getItem('plc_sidebar_hidden') === '1') {
+                app.classList.add('sidebar-hidden');
+            }
+        }
+
         btn.addEventListener('click', () => {
-            const hidden = app.classList.toggle('sidebar-hidden');
-            localStorage.setItem('plc_sidebar_hidden', hidden ? '1' : '0');
+            if (app.classList.contains('sidebar-hidden')) openSidebar();
+            else closeSidebar();
         });
     }
 

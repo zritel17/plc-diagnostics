@@ -1195,3 +1195,43 @@ body.embedded .modal {
   max-width: 98vw;
   max-height: 95vh;
 }
+
+/* =====================================================================
+   KIOSK MODE — Overlay sidebar для Pi touchscreen
+   body.kiosk добавляется JS когда URL содержит ?kiosk=1
+   ===================================================================== */
+
+body.kiosk .pkl-app {
+  grid-template-columns: 1fr;
+}
+
+body.kiosk .pkl-sidebar {
+  display: flex !important;
+  position: fixed;
+  top: 0;
+  left: calc(-1 * var(--sidebar-w) - 10px);
+  height: 100vh;
+  z-index: 1000;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  transition: left 0.22s ease;
+}
+
+body.kiosk .pkl-app.sidebar-hidden .pkl-sidebar {
+  display: flex !important;
+}
+
+body.kiosk .pkl-app:not(.sidebar-hidden) .pkl-sidebar {
+  left: 0;
+}
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.sidebar-backdrop.active {
+  display: block;
+}
