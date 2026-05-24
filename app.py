@@ -56,12 +56,17 @@ async def lifespan(app: FastAPI):
         print("[STARTUP] SQLite готов")
     except Exception as e:
         print(f"[STARTUP] SQLite init error: {e}")
-    # 2) InfluxDB
-    try:
-        ok = await asyncio.to_thread(influx.connect)
-        print(f"[STARTUP] InfluxDB available={ok} err={influx.last_error}")
-    except Exception as e:
-        print(f"[STARTUP] InfluxDB connect error: {e}")
+    # 2) InfluxDB — retry up to 10 attempts with 2 s delay
+    for _attempt in range(10):
+        try:
+            ok = await asyncio.to_thread(influx.connect)
+            print(f"[STARTUP] InfluxDB available={ok} err={influx.last_error}")
+            if ok:
+                break
+        except Exception as e:
+            print(f"[STARTUP] InfluxDB attempt {_attempt + 1} error: {e}")
+        if _attempt < 9:
+            await asyncio.sleep(2)
     # 3) Автозапуск коллектора
     try:
         async with SessionLocal() as s:
@@ -74,6 +79,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[STARTUP] autostart error: {e}")
     asyncio.create_task(_plc_bg_reader())
+    asyncio.create_task(_influx_reconnect_loop())
     yield
     # shutdown
     print("[SHUTDOWN] остановка…")
@@ -119,6 +125,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         auth = request.headers.get("Authorization", "")
         token = auth.removeprefix("Bearer ").strip()
+        if not token:
+            # EventSource не может слать заголовки — принимаем токен из query param
+            token = request.query_params.get("token", "")
         if not _valid_token(token):
             return JSONResponse({"detail": "Unauthorized"}, status_code=401)
         return await call_next(request)
@@ -849,6 +858,19 @@ def _build_tags_result(tag_values):
                 result[category].append(tag_result)
     return result
 
+async def _influx_reconnect_loop():
+    """Раз в 30 с пробует переподключиться к InfluxDB если недоступен."""
+    while not (shutdown_event and shutdown_event.is_set()):
+        await asyncio.sleep(30)
+        if not influx.available:
+            try:
+                ok = await asyncio.to_thread(influx.connect)
+                if ok:
+                    print("[INFLUX] переподключение успешно")
+            except Exception as e:
+                print(f"[INFLUX] переподключение не удалось: {e}")
+
+
 async def _plc_bg_reader():
     """Фоновый task: batch-читает теги и IO каждые 500 мс, кладёт в кэш."""
     global _tags_cache, _io_cache, last_update
@@ -904,6 +926,13 @@ async def _emulator_bg_tick():
         _tags_cache = {"tags": _build_tags_result(_emulator_values), "last_update": ts}
         _io_cache = []
         last_update = ts
+        # Пишем в InfluxDB каждую секунду (каждые 10 тиков по 100 мс)
+        if influx.available and tick % 10 == 0:
+            ts_dt = datetime.utcnow()
+            for _tag, _val in _emulator_values.items():
+                await asyncio.to_thread(
+                    influx.write_point, _tag, _val, "EMULATOR", "on_change", ts_dt
+                )
         await asyncio.sleep(0.1)
 
 @app.get("/api/tags")
