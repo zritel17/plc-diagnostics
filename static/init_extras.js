@@ -289,6 +289,7 @@
 
     function renderUpdateInfo(info) {
         _updateInfo = info;
+        // modal elements
         const hashEl   = document.getElementById('updateCurrentHash');
         const msgEl    = document.getElementById('updateCurrentMsg');
         const newRow   = document.getElementById('updateNewRow');
@@ -307,6 +308,27 @@
             if (newRow)  newRow.style.display  = 'none';
             if (applyBtn) applyBtn.style.display = 'none';
             updateModalSetStatus('You are up to date.');
+        }
+        // settings card elements
+        const sHash   = document.getElementById('settingsCurrentHash');
+        const sMsg    = document.getElementById('settingsCurrentMsg');
+        const sAvail  = document.getElementById('settingsUpdateAvailRow');
+        const sNHash  = document.getElementById('settingsNewHash');
+        const sNMsg   = document.getElementById('settingsNewMsg');
+        const sStatus = document.getElementById('settingsUpdateStatus');
+        const sApply  = document.getElementById('settingsUpdateApplyBtn');
+        if (sHash) sHash.textContent = info.current_hash ? info.current_hash.slice(0, 8) : '—';
+        if (sMsg)  sMsg.textContent  = info.current_msg  || '';
+        if (info.update_available) {
+            if (sAvail) sAvail.style.display = '';
+            if (sNHash) sNHash.textContent = (info.new_hash || '').slice(0, 8);
+            if (sNMsg)  sNMsg.textContent  = info.new_msg || '';
+            if (sApply) sApply.style.display = '';
+            if (sStatus) sStatus.textContent = `${info.commits_behind} new commit(s) available.`;
+        } else {
+            if (sAvail) sAvail.style.display = 'none';
+            if (sApply) sApply.style.display = 'none';
+            if (sStatus) sStatus.textContent = 'You are up to date.';
         }
     }
 
@@ -365,6 +387,13 @@
         document.getElementById('updateModal')?.addEventListener('click', e => {
             if (e.target === document.getElementById('updateModal')) closeUpdateModal();
         });
+        // Settings card buttons
+        document.getElementById('settingsUpdateCheckBtn')?.addEventListener('click', () => {
+            const sStatus = document.getElementById('settingsUpdateStatus');
+            if (sStatus) sStatus.textContent = 'Checking…';
+            checkForUpdate(false);
+        });
+        document.getElementById('settingsUpdateApplyBtn')?.addEventListener('click', applyUpdate);
         // Silent background check 5 s after load
         setTimeout(() => checkForUpdate(true), 5000);
     }

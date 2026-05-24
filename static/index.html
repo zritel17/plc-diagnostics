@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PLC Edge Gateway — Allen-Bradley</title>
-    <link rel="stylesheet" href="/static/styles.css?v=30">
+    <link rel="stylesheet" href="/static/styles.css?v=31">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -421,6 +421,25 @@
                         </div>
                     </div>
 
+                    <div class="card" style="flex-shrink:0;">
+                        <div class="card-title">Software Update</div>
+                        <div class="card-body">
+                            <div style="font-size:13px; color:var(--fg-muted); margin-bottom:10px;">
+                                Current: <span id="settingsCurrentHash" style="font-family:monospace;">—</span>
+                                <span id="settingsCurrentMsg" style="margin-left:8px;"></span>
+                            </div>
+                            <div id="settingsUpdateAvailRow" style="display:none; font-size:13px; color:var(--accent); margin-bottom:10px;">
+                                ↑ Update available: <span id="settingsNewHash" style="font-family:monospace;"></span>
+                                <span id="settingsNewMsg" style="margin-left:8px; color:var(--fg-muted);"></span>
+                            </div>
+                            <div id="settingsUpdateStatus" style="font-size:13px; color:var(--fg-muted); margin-bottom:10px;"></div>
+                            <div class="card-actions">
+                                <button class="btn btn-secondary btn-small" id="settingsUpdateCheckBtn">Check for updates</button>
+                                <button class="btn btn-small" id="settingsUpdateApplyBtn" style="display:none;">Apply &amp; Restart</button>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- app.js compat elements (hidden) -->
@@ -468,15 +487,15 @@
     </div>
 </div>
 
-    <script src="/static/app.js?v=30"></script>
-    <script src="/static/collector.js?v=30"></script>
-    <script src="/static/config.js?v=30"></script>
-    <script src="/static/dashboard.js?v=30"></script>
-    <script src="/static/control.js?v=30"></script>
-    <script src="/static/diagnostics.js?v=30"></script>
-    <script src="/static/recipes.js?v=30"></script>
-    <script src="/static/ai.js?v=30"></script>
-    <script src="/static/settings.js?v=30"></script>
-    <script src="/static/init_extras.js?v=30"></script>
+    <script src="/static/app.js?v=31"></script>
+    <script src="/static/collector.js?v=31"></script>
+    <script src="/static/config.js?v=31"></script>
+    <script src="/static/dashboard.js?v=31"></script>
+    <script src="/static/control.js?v=31"></script>
+    <script src="/static/diagnostics.js?v=31"></script>
+    <script src="/static/recipes.js?v=31"></script>
+    <script src="/static/ai.js?v=31"></script>
+    <script src="/static/settings.js?v=31"></script>
+    <script src="/static/init_extras.js?v=31"></script>
 </body>
 </html>
