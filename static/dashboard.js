@@ -236,7 +236,7 @@ window.Dashboards = (() => {
                 return;
             }
 
-            const url = `/api/data/${encodeURIComponent(w.tag_name)}/history?from=${encodeURIComponent(effectiveRange)}` +
+            const url = `/api/data/${encodeURIComponent(w.tag_name)}/history?from=${encodeURIComponent(effectiveRange)}&max_points=20` +
                         (w.aggregation ? `&agg=${encodeURIComponent(w.aggregation)}` : '');
             const r = await fetch(url);
             const d = await r.json();

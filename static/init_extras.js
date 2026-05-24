@@ -46,7 +46,7 @@
 
     // ── TAB MANAGEMENT ────────────────────────────────────────────────────────
     function showOnly(viewId) {
-        ['plcView', 'collectorView', 'dashboardsView', 'controlView', 'recipesView', 'aiView', 'settingsView'].forEach(id => {
+        ['plcView', 'collectorView', 'dashboardsView', 'controlView', 'recipesView', 'aiView', 'settingsView', 'databaseView'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = (id === viewId) ? 'flex' : 'none';
         });
@@ -133,6 +133,15 @@
                 if (window.Settings) Settings.onShow();
             });
         }
+
+        const dbTab = document.querySelector('.tab[data-tab="database"]');
+        if (dbTab) {
+            dbTab.addEventListener('click', () => {
+                document.body.classList.add('no-left');
+                showOnly('databaseView');
+                if (window.Database) Database.onShow();
+            });
+        }
     }
 
     function initModules() {
@@ -144,6 +153,7 @@
         try { if (window.Recipes)      Recipes.init();      } catch (e) { console.error('Recipes.init', e); }
         try { if (window.AIAnalytics)  AIAnalytics.init();  } catch (e) { console.error('AIAnalytics.init', e); }
         try { if (window.Settings)     Settings.init();     } catch (e) { console.error('Settings.init', e); }
+        try { if (window.Database)     Database.init();     } catch (e) { console.error('Database.init', e); }
     }
 
     // ── WEBSOCKET ─────────────────────────────────────────────────────────────

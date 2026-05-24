@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PLC Edge Gateway — Allen-Bradley</title>
-    <link rel="stylesheet" href="/static/styles.css?v=31">
+    <link rel="stylesheet" href="/static/styles.css?v=32">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -29,6 +29,7 @@
             <div class="tab" data-tab="collector">Tags</div>
             <div class="tab" data-tab="recipes">Recipes</div>
             <div class="tab" data-tab="ai">AI Analytics</div>
+            <div class="tab" data-tab="database">⊞ Database</div>
             <div class="tab" data-tab="settings">⚙ Settings</div>
         </nav>
 
@@ -371,6 +372,54 @@
                     </div>
                 </div>
 
+                <!-- Database tab -->
+                <div id="databaseView" class="full-view" style="display:none; flex-direction:column; gap:12px;">
+
+                    <div class="card" style="flex-shrink:0;">
+                        <div class="card-body" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+                            <label style="font-size:13px;">Tag</label>
+                            <select id="dbTagSelect" style="min-width:200px; max-width:340px;"></select>
+                            <label style="font-size:13px;">Range</label>
+                            <select id="dbRangeSelect">
+                                <option value="-5m">Last 5 min</option>
+                                <option value="-15m" selected>Last 15 min</option>
+                                <option value="-1h">Last 1 hour</option>
+                                <option value="-6h">Last 6 hours</option>
+                                <option value="-24h">Last 24 hours</option>
+                            </select>
+                            <label style="font-size:13px;">Rows</label>
+                            <select id="dbRowsSelect">
+                                <option value="20">20</option>
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                                <option value="500">500</option>
+                            </select>
+                            <label class="checkbox-label" style="font-size:13px;">
+                                <input type="checkbox" id="dbAutoRefresh" checked /> Auto-refresh
+                            </label>
+                            <button class="btn btn-secondary btn-small" id="dbRefreshBtn">Refresh</button>
+                            <span id="dbStatus" style="font-size:12px; color:var(--fg-muted); margin-left:4px;"></span>
+                        </div>
+                    </div>
+
+                    <div class="card" style="flex:1; min-height:0; overflow:hidden;">
+                        <div class="card-body" style="padding:0; height:100%; overflow:auto;">
+                            <table class="data-table" style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th style="width:190px;">Timestamp</th>
+                                        <th>Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dbTableBody">
+                                    <tr><td colspan="2" class="empty-row">Select a tag and click Refresh</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
                 <!-- Settings tab -->
                 <div id="settingsView" class="full-view" style="display:none;">
 
@@ -487,15 +536,16 @@
     </div>
 </div>
 
-    <script src="/static/app.js?v=31"></script>
-    <script src="/static/collector.js?v=31"></script>
-    <script src="/static/config.js?v=31"></script>
-    <script src="/static/dashboard.js?v=31"></script>
-    <script src="/static/control.js?v=31"></script>
-    <script src="/static/diagnostics.js?v=31"></script>
-    <script src="/static/recipes.js?v=31"></script>
-    <script src="/static/ai.js?v=31"></script>
-    <script src="/static/settings.js?v=31"></script>
-    <script src="/static/init_extras.js?v=31"></script>
+    <script src="/static/app.js?v=32"></script>
+    <script src="/static/collector.js?v=32"></script>
+    <script src="/static/config.js?v=32"></script>
+    <script src="/static/dashboard.js?v=32"></script>
+    <script src="/static/control.js?v=32"></script>
+    <script src="/static/diagnostics.js?v=32"></script>
+    <script src="/static/recipes.js?v=32"></script>
+    <script src="/static/ai.js?v=32"></script>
+    <script src="/static/settings.js?v=32"></script>
+    <script src="/static/database.js?v=32"></script>
+    <script src="/static/init_extras.js?v=32"></script>
 </body>
 </html>
