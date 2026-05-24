@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
+<div id="alertContainer" style="position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:340px;"></div>
 <div class="pkl-app">
 
     <!-- ================================================================
@@ -80,7 +81,6 @@
                                     <input type="checkbox" id="autoConnectCheck" /> Auto-connect
                                 </label>
                             </div>
-                            <div id="alertContainer" style="margin-top:6px;"></div>
                             <div class="history-section" style="margin-top:8px;">
                                 <div class="history-title">History (10):</div>
                                 <div class="history-list" id="historyList">
