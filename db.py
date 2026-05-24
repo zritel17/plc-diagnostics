@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from sqlalchemy import (
-    String, Integer, Float, DateTime, ForeignKey, select
+    String, Integer, Float, DateTime, ForeignKey, select, text
 )
 from sqlalchemy.ext.asyncio import (
     create_async_engine, AsyncSession, async_sessionmaker
@@ -36,6 +36,7 @@ class TagConfig(Base):
     interval_sec: Mapped[Optional[int]] = mapped_column(Integer, default=None)
     deadband: Mapped[float] = mapped_column(Float, default=0.0)
     enabled: Mapped[int] = mapped_column(Integer, default=1)
+    description: Mapped[Optional[str]] = mapped_column(String, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -46,6 +47,12 @@ class CollectorSettings(Base):
     poll_interval_ms: Mapped[int] = mapped_column(Integer, default=100)
     plc_ip: Mapped[Optional[str]] = mapped_column(String, default=None)
     plc_slot: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AppSettings(Base):
+    __tablename__ = "app_settings"
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[Optional[str]] = mapped_column(String, default=None)
 
 
 class Dashboard(Base):
@@ -99,11 +106,20 @@ class RecipeChange(Base):
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migrate existing tags_config table (SQLAlchemy create_all won't add new columns)
+        try:
+            await conn.execute(text("ALTER TABLE tags_config ADD COLUMN description TEXT"))
+        except Exception:
+            pass  # column already exists
     async with SessionLocal() as s:
         row = await s.get(CollectorSettings, 1)
         if row is None:
             s.add(CollectorSettings(id=1))
             await s.commit()
+        for key in ("ollama_url", "ai_model"):
+            if not await s.get(AppSettings, key):
+                s.add(AppSettings(key=key))
+        await s.commit()
 
 
 # === InfluxDB ===
@@ -273,6 +289,36 @@ class InfluxClient:
                             out[fn] = float(v)
             except Exception:
                 pass
+        return out
+
+
+    def db_summary(self) -> Dict[str, Any]:
+        tags = self.list_tags_with_data()
+        out: Dict[str, Any] = {
+            "available": self.available,
+            "tags_with_data": len(tags),
+            "oldest": None,
+            "newest": None,
+            "error": self.last_error,
+        }
+        if not self.available:
+            return out
+        for fn, key in (("first", "oldest"), ("last", "newest")):
+            flux = (
+                f'from(bucket: "{INFLUX_BUCKET_RAW}")\n'
+                f'  |> range(start: -365d)\n'
+                f'  |> filter(fn: (r) => r._measurement == "tag_values" and r._field == "value")\n'
+                f'  |> {fn}()\n'
+                f'  |> keep(columns: ["_time"])\n'
+                f'  |> limit(n: 1)'
+            )
+            try:
+                tables = self._query_api.query(flux, org=INFLUX_ORG)
+                for t in tables:
+                    for rec in t.records:
+                        out[key] = rec.get_time().isoformat()
+            except Exception as e:
+                self.last_error = f"db_summary {fn}: {e}"
         return out
 
 

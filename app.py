@@ -27,7 +27,7 @@ from sqlalchemy import select, delete
 
 import db as db_module
 from db import (
-    SessionLocal, TagConfig, CollectorSettings, Dashboard, Widget, influx,
+    SessionLocal, TagConfig, CollectorSettings, AppSettings, Dashboard, Widget, influx,
     init_db,
 )
 from models import (
@@ -1074,6 +1074,7 @@ async def cfg_save_tags(req: SaveTagsRequest):
                 existing.interval_sec = t.interval_sec
                 existing.deadband = t.deadband
                 existing.enabled = t.enabled
+                existing.description = t.description
             else:
                 s.add(TagConfig(
                     tag_name=t.tag_name,
@@ -1082,6 +1083,7 @@ async def cfg_save_tags(req: SaveTagsRequest):
                     interval_sec=t.interval_sec,
                     deadband=t.deadband,
                     enabled=t.enabled,
+                    description=t.description,
                 ))
         await s.commit()
     return {"status": "ok", "count": len(req.tags)}
@@ -1145,6 +1147,62 @@ async def coll_start():
 async def coll_stop():
     res = await collector.stop()
     return res
+
+
+# ============================================================================
+# App-wide settings
+# ============================================================================
+
+@app.get("/api/settings")
+async def get_settings():
+    async with SessionLocal() as s:
+        coll = await s.get(CollectorSettings, 1)
+        ollama_row = await s.get(AppSettings, "ollama_url")
+        model_row  = await s.get(AppSettings, "ai_model")
+    return {
+        "plc_ip":          coll.plc_ip if coll else None,
+        "plc_slot":        coll.plc_slot if coll else 0,
+        "poll_interval_ms": coll.poll_interval_ms if coll else 100,
+        "autostart":       bool(coll.autostart) if coll else False,
+        "ollama_url":      (ollama_row.value if ollama_row and ollama_row.value else None) or OLLAMA_URL,
+        "ai_model":        (model_row.value if model_row and model_row.value else None) or AI_MODEL,
+    }
+
+
+@app.post("/api/settings")
+async def save_settings(payload: dict):
+    async with SessionLocal() as s:
+        coll = await s.get(CollectorSettings, 1)
+        if coll is None:
+            coll = CollectorSettings(id=1)
+            s.add(coll)
+        if "plc_ip" in payload:
+            coll.plc_ip = payload["plc_ip"] or None
+        if "plc_slot" in payload:
+            coll.plc_slot = int(payload["plc_slot"])
+        if "poll_interval_ms" in payload:
+            coll.poll_interval_ms = max(50, min(10000, int(payload["poll_interval_ms"])))
+        if "autostart" in payload:
+            coll.autostart = 1 if payload["autostart"] else 0
+        for key in ("ollama_url", "ai_model"):
+            if key in payload:
+                row = await s.get(AppSettings, key)
+                if row is None:
+                    row = AppSettings(key=key)
+                    s.add(row)
+                row.value = payload[key] or None
+        await s.commit()
+    return {"status": "ok"}
+
+
+@app.get("/api/db/stats")
+async def db_stats():
+    async with SessionLocal() as s:
+        res = await s.execute(select(TagConfig))
+        tags_configured = len(list(res.scalars().all()))
+    summary = await asyncio.to_thread(influx.db_summary)
+    summary["tags_configured"] = tags_configured
+    return summary
 
 
 # ============================================================================
@@ -1426,36 +1484,50 @@ OLLAMA_URL  = os.getenv("OLLAMA_URL", "http://localhost:11434")
 AI_MODEL    = os.getenv("AI_MODEL", "phi3:mini")
 
 _SYSTEM_PROMPT = (
-    "Ты эксперт по промышленной автоматизации, анализируешь данные Allen-Bradley ControlLogix ПЛК. "
-    "Отвечай на русском языке. Будь конкретен и практичен. Используй инженерную терминологию. "
-    "Формат ответа: краткие пункты. Критичные проблемы выдели в начале списка."
+    "You are an industrial automation expert analyzing data from an Allen-Bradley ControlLogix PLC. "
+    "Respond in English. Be specific and practical. Use engineering terminology. "
+    "Format: concise bullet points. List critical issues first."
 )
 
 _ANALYSIS_INTROS = {
-    "anomalies":   "Проанализируй данные тегов ПЛК и выяви аномалии, выбросы и отклонения от нормы. "
-                   "Укажи конкретные теги с проблемами и рекомендуй действия.\n\n",
-    "diagnostics": "Проведи диагностику оборудования по данным тегов ПЛК. "
-                   "Определи потенциальные проблемы, тенденции к ухудшению и рекомендации по профилактике.\n\n",
-    "report":      "Составь сводный отчёт по работе оборудования за указанный период на основе данных тегов ПЛК. "
-                   "Укажи: время работы в норме, выявленные отклонения, экстремальные значения.\n\n",
+    "anomalies":   "Analyze the PLC tag data and identify anomalies, outliers, and deviations from normal operation. "
+                   "Name the specific tags with issues and recommend corrective actions.\n\n",
+    "diagnostics": "Perform an equipment diagnostic based on PLC tag data. "
+                   "Identify potential failures, degradation trends, and preventive maintenance recommendations.\n\n",
+    "report":      "Generate a summary report of equipment operation for the given period based on PLC tag data. "
+                   "Include: normal operating time, detected deviations, extreme values.\n\n",
 }
 
 
-def _build_context_text(tag_stats: dict, current_values: dict) -> str:
+async def _get_ai_config() -> tuple:
+    """Returns (ollama_url, ai_model) — DB overrides env if set."""
+    async with SessionLocal() as s:
+        ollama_row = await s.get(AppSettings, "ollama_url")
+        model_row  = await s.get(AppSettings, "ai_model")
+    url   = (ollama_row.value if ollama_row and ollama_row.value else None) or OLLAMA_URL
+    model = (model_row.value  if model_row  and model_row.value  else None) or AI_MODEL
+    return url, model
+
+
+def _build_context_text(tag_stats: dict, current_values: dict, tag_descs: dict = None) -> str:
     lines = []
     for tag_name, s in tag_stats.items():
         if not s:
             continue
         cur = current_values.get(tag_name)
-        parts = [f"Тег: {tag_name}"]
+        desc = (tag_descs or {}).get(tag_name)
+        label = f"Tag: {tag_name}"
+        if desc:
+            label += f" [{desc}]"
+        parts = [label]
         if "mean" in s:
-            parts.append(f"среднее={s['mean']:.3g}")
+            parts.append(f"mean={s['mean']:.3g}")
         if "min" in s:
-            parts.append(f"мин={s['min']:.3g}")
+            parts.append(f"min={s['min']:.3g}")
         if "max" in s:
-            parts.append(f"макс={s['max']:.3g}")
+            parts.append(f"max={s['max']:.3g}")
         if cur is not None:
-            parts.append(f"текущее={cur}")
+            parts.append(f"current={cur}")
             if "mean" in s and "min" in s and "max" in s:
                 spread = s["max"] - s["min"]
                 if spread > 0:
@@ -1463,7 +1535,7 @@ def _build_context_text(tag_stats: dict, current_values: dict) -> str:
                         cur_f = float(cur)
                         threshold = s["mean"] + 2 * (spread / 4)
                         if cur_f > threshold or cur_f < s["mean"] - 2 * (spread / 4):
-                            parts.append("⚠ АНОМАЛИЯ")
+                            parts.append("⚠ ANOMALY")
                     except (ValueError, TypeError):
                         pass
         lines.append(", ".join(parts))
@@ -1475,6 +1547,7 @@ async def ai_analyze_stream(
     analysis_type: str = Query("anomalies"),
     time_range:    str = Query("-8h"),
     tags:          str = Query(""),
+    custom_prompt: str = Query(""),
     token:         str = Query(""),
 ):
     if not _valid_token(token):
@@ -1502,9 +1575,16 @@ async def ai_analyze_stream(
                     if isinstance(entry, dict) and "name" in entry:
                         current_values[entry["name"]] = entry.get("value")
 
-    context_text = _build_context_text(tag_stats, current_values)
-    intro = _ANALYSIS_INTROS.get(analysis_type, _ANALYSIS_INTROS["anomalies"])
-    user_prompt = intro + f"Данные тегов (период {time_range}):\n{context_text}"
+    # Load tag descriptions for AI context
+    async with SessionLocal() as s:
+        res = await s.execute(select(TagConfig))
+        tag_descs = {r.tag_name: r.description for r in res.scalars().all() if r.description}
+
+    context_text = _build_context_text(tag_stats, current_values, tag_descs)
+    intro = custom_prompt.strip() + "\n\n" if custom_prompt.strip() else _ANALYSIS_INTROS.get(analysis_type, _ANALYSIS_INTROS["anomalies"])
+    user_prompt = intro + f"Tag data (period {time_range}):\n{context_text}"
+
+    ollama_url, ai_model = await _get_ai_config()
 
     async def generate():
         import httpx
@@ -1512,9 +1592,9 @@ async def ai_analyze_stream(
             async with httpx.AsyncClient(timeout=120) as client:
                 async with client.stream(
                     "POST",
-                    f"{OLLAMA_URL}/api/chat",
+                    f"{ollama_url}/api/chat",
                     json={
-                        "model": AI_MODEL,
+                        "model": ai_model,
                         "messages": [
                             {"role": "system", "content": _SYSTEM_PROMPT},
                             {"role": "user",   "content": user_prompt},
@@ -1538,7 +1618,7 @@ async def ai_analyze_stream(
                         except json.JSONDecodeError:
                             pass
         except httpx.ConnectError:
-            yield f"data: [ERROR] Ollama unavailable ({OLLAMA_URL}). Run: sudo systemctl start ollama\n\n"
+            yield f"data: [ERROR] Ollama unavailable ({ollama_url}). Run: sudo systemctl start ollama\n\n"
         except Exception as e:
             yield f"data: [ERROR] {e}\n\n"
         yield "data: [DONE]\n\n"

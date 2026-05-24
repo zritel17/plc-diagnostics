@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PLC Edge Gateway — Allen-Bradley</title>
-    <link rel="stylesheet" href="/static/styles.css?v=28">
+    <link rel="stylesheet" href="/static/styles.css?v=30">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -29,6 +29,7 @@
             <div class="tab" data-tab="collector">Tags</div>
             <div class="tab" data-tab="recipes">Recipes</div>
             <div class="tab" data-tab="ai">AI Analytics</div>
+            <div class="tab" data-tab="settings">⚙ Settings</div>
         </nav>
 
         <div class="pkl-sidebar-footer">
@@ -234,16 +235,17 @@
                             <table class="data-table" id="cfgTable">
                                 <thead>
                                     <tr>
-                                        <th style="width: 40%;">Tag</th>
+                                        <th style="width: 28%;">Tag</th>
                                         <th>Type</th>
                                         <th>Mode</th>
                                         <th>Parameter</th>
+                                        <th>Description</th>
                                         <th>Active</th>
                                         <th></th>
                                     </tr>
                                 </thead>
                                 <tbody id="cfgTableBody">
-                                    <tr><td colspan="6" class="empty-row">List is empty</td></tr>
+                                    <tr><td colspan="7" class="empty-row">List is empty</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -335,6 +337,23 @@
                         </div>
                     </div>
 
+                    <div class="card" style="flex-shrink:0;">
+                        <div class="card-title">Custom Analysis</div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <label>Tags</label>
+                                <input type="text" id="aiCustomTags" placeholder="Tag1, Tag2, … (empty = use favorites filter or all collected)" style="flex:1;" />
+                            </div>
+                            <div class="form-row" style="align-items:flex-start;">
+                                <label style="padding-top:4px;">Question</label>
+                                <textarea id="aiCustomPrompt" rows="3" placeholder="e.g. Is Motor_Speed trending down over the last 8 hours? What is the duty cycle of Pump_Run?" style="flex:1; font-family:inherit; font-size:13px; resize:vertical;"></textarea>
+                            </div>
+                            <div class="card-actions" style="margin-top:8px;">
+                                <button class="btn" id="aiCustomRunBtn">▶ Run Custom Analysis</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="card" id="aiResultCard" style="display:none;">
                         <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
                             <span id="aiResultTitle">Result</span>
@@ -350,6 +369,58 @@
                             <div id="aiStatusMsg" style="font-size:13px; color:var(--fg-muted);"></div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Settings tab -->
+                <div id="settingsView" class="full-view" style="display:none;">
+
+                    <div class="card" style="flex-shrink:0;">
+                        <div class="card-title">PLC &amp; Collector</div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <label>PLC IP</label>
+                                <input type="text" id="settingsPlcIp" placeholder="192.168.1.100" style="min-width:160px;" />
+                                <label>Slot</label>
+                                <input type="number" id="settingsPlcSlot" min="0" max="15" value="0" style="width:70px;" />
+                            </div>
+                            <div class="form-row">
+                                <label>Poll interval (ms)</label>
+                                <input type="number" id="settingsPollInterval" min="50" max="10000" value="100" style="width:100px;" />
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="settingsAutostart" /> Auto-start on Pi boot
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="flex-shrink:0;">
+                        <div class="card-title">AI Analytics</div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <label>Ollama URL</label>
+                                <input type="text" id="settingsOllamaUrl" placeholder="http://localhost:11434" style="min-width:220px;" />
+                            </div>
+                            <div class="form-row">
+                                <label>AI Model</label>
+                                <input type="text" id="settingsAiModel" placeholder="phi3:mini" style="min-width:160px;" />
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn" id="settingsSaveBtn">Save settings</button>
+                                <span id="settingsSaveStatus" style="font-size:13px; margin-left:8px;"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="flex-shrink:0;">
+                        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>Database Info</span>
+                            <button class="btn btn-secondary btn-small" id="settingsDbRefreshBtn">Refresh</button>
+                        </div>
+                        <div class="card-body">
+                            <pre id="settingsDbStats" style="font-size:13px; line-height:1.7; margin:0; white-space:pre-wrap; color:var(--fg-muted);">Click Refresh to load stats</pre>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- app.js compat elements (hidden) -->
@@ -397,14 +468,15 @@
     </div>
 </div>
 
-    <script src="/static/app.js?v=29"></script>
-    <script src="/static/collector.js?v=29"></script>
-    <script src="/static/config.js?v=29"></script>
-    <script src="/static/dashboard.js?v=29"></script>
-    <script src="/static/control.js?v=29"></script>
-    <script src="/static/diagnostics.js?v=29"></script>
-    <script src="/static/recipes.js?v=29"></script>
-    <script src="/static/ai.js?v=29"></script>
-    <script src="/static/init_extras.js?v=29"></script>
+    <script src="/static/app.js?v=30"></script>
+    <script src="/static/collector.js?v=30"></script>
+    <script src="/static/config.js?v=30"></script>
+    <script src="/static/dashboard.js?v=30"></script>
+    <script src="/static/control.js?v=30"></script>
+    <script src="/static/diagnostics.js?v=30"></script>
+    <script src="/static/recipes.js?v=30"></script>
+    <script src="/static/ai.js?v=30"></script>
+    <script src="/static/settings.js?v=30"></script>
+    <script src="/static/init_extras.js?v=30"></script>
 </body>
 </html>

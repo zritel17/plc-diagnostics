@@ -21,7 +21,7 @@ window.TagCfg = (() => {
         if (!tbody) return;
         counter.textContent = `(${configs.length})`;
         if (!configs.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="empty-row">List is empty. Connect to PLC on the "Tags" tab and click "+ Add from PLC".</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-row">List is empty. Connect to PLC on the "Tags" tab and click "+ Add from PLC".</td></tr>';
             return;
         }
         tbody.innerHTML = configs.map(c => {
@@ -39,6 +39,7 @@ window.TagCfg = (() => {
                     </select>
                 </td>
                 <td>${param}</td>
+                <td><input type="text" placeholder="Description for AI…" value="${esc(c.description || '')}" data-id="${c.id}" data-field="description" style="min-width:140px;" /></td>
                 <td><input type="checkbox" data-id="${c.id}" data-field="enabled" ${c.enabled?'checked':''} /></td>
                 <td><button class="btn btn-danger btn-small del-btn" data-tag="${esc(c.tag_name)}">🗑</button></td>
             </tr>`;
@@ -64,8 +65,9 @@ window.TagCfg = (() => {
         }
         else if (field === 'deadband') cfg.deadband = parseFloat(e.target.value) || 0;
         else if (field === 'interval_sec') cfg.interval_sec = parseInt(e.target.value, 10) || 1;
+        else if (field === 'description') cfg.description = e.target.value.trim() || null;
         await saveOne(cfg);
-        renderTable();
+        if (field !== 'description') renderTable();
     }
 
     async function saveOne(cfg) {
@@ -77,6 +79,7 @@ window.TagCfg = (() => {
                 interval_sec: cfg.interval_sec,
                 deadband: cfg.deadband || 0,
                 enabled: cfg.enabled ? 1 : 0,
+                description: cfg.description || null,
             }],
             replace_all: false,
         };

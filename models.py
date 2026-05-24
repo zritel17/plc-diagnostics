@@ -15,6 +15,7 @@ class TagConfigIn(BaseModel):
     interval_sec: Optional[int] = Field(default=None, ge=1)
     deadband: float = 0.0
     enabled: int = 1
+    description: Optional[str] = None
 
 
 class TagConfigOut(TagConfigIn):
