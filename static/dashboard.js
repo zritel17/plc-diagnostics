@@ -307,7 +307,7 @@ window.Dashboards = (() => {
             }, ms));
         }
 
-        const mp = w.max_points ?? 100;
+        const mp = Math.max(10, Math.min(2000, w.max_points ?? 100));
 
         try {
             // ── boolean ──────────────────────────────────────────────────────
@@ -351,7 +351,7 @@ window.Dashboards = (() => {
 
             // ── table ─────────────────────────────────────────────────────────
             if (w.widget_type === 'table') {
-                const rows = points.slice(-200).reverse().map(p => `
+                const rows = [...points].reverse().map(p => `
                     <tr><td>${new Date(p.time).toLocaleString()}</td><td>${formatVal(p.value)}</td></tr>`).join('');
                 body.innerHTML = `<div style="width:100%;max-height:100%;overflow:auto;">
                     <table class="data-table" style="width:100%">
@@ -389,9 +389,7 @@ window.Dashboards = (() => {
             }
 
             // ── line_chart ────────────────────────────────────────────────────
-            body.innerHTML = `<canvas id="chart-${w.id}" style="width:100%;height:100%;"></canvas>`;
-            const ctx    = document.getElementById(`chart-${w.id}`);
-            const color  = w.color || '#667eea';
+            const color   = w.color || '#667eea';
             const bgColor = color + '26';
             const labels  = points.map(p => new Date(p.time).toLocaleString(undefined, {
                 hour: '2-digit', minute: '2-digit', second: '2-digit'
@@ -417,6 +415,19 @@ window.Dashboards = (() => {
                 }));
 
             const hasThresholds = thresholdDatasets.length > 0;
+            const existing = widgetCharts.get(w.id);
+            if (existing && existing._tagName === w.tag_name) {
+                existing.data.labels = labels;
+                existing.data.datasets[0].data = points.map(p => +p.value);
+                thresholdDatasets.forEach((td, i) => {
+                    if (existing.data.datasets[i + 1]) existing.data.datasets[i + 1].data = td.data;
+                });
+                existing.update('none');
+                return;
+            }
+            if (existing) existing.destroy();
+            body.innerHTML = `<canvas id="chart-${w.id}" style="width:100%;height:100%;"></canvas>`;
+            const ctx   = document.getElementById(`chart-${w.id}`);
             const chart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -456,6 +467,7 @@ window.Dashboards = (() => {
                     },
                 },
             });
+            chart._tagName = w.tag_name;
             widgetCharts.set(w.id, chart);
         } catch (e) {
             body.innerHTML = `<div class="widget-empty">Error: ${esc(e.message || e)}</div>`;
