@@ -243,9 +243,10 @@
         if (localStorage.getItem('plc_autoconnect') !== '1') return;
         const ip = localStorage.getItem('plc_last_ip');
         if (!ip) return;
+        // Задержка 1200мс чтобы syncServerState() успел завершиться раньше
         setTimeout(() => {
             if (!window.isConnected && typeof connect === 'function') connect();
-        }, 400);
+        }, 1200);
     }
 
     function bindConnectSave() {

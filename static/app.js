@@ -1044,6 +1044,30 @@ function stopAutoRefresh() {
     updateInterval = null;
 }
 
+async function syncServerState() {
+    try {
+        const r = await fetch(`${API_BASE}/api/status`);
+        if (!r.ok) return;
+        const s = await r.json();
+        if (s.status !== 'online') return;
+        // Сервер уже подключён — синхронизируем UI без повторного connect()
+        isConnected = true;
+        if (s.ip && s.ip !== 'EMULATOR' && ipInput) ipInput.value = s.ip;
+        if (s.slot != null && slotInput) slotInput.value = s.slot;
+        updateStatus('online', s.ip, s.slot);
+        connectBtn.textContent = 'Disconnect';
+        connectBtn.classList.add('btn-danger');
+        if (s.ip === 'EMULATOR' && emulatorBtn) {
+            emulatorBtn.textContent = 'Disconnect';
+            emulatorBtn.classList.add('active', 'btn-danger');
+        }
+        needsFullRender = true;
+        await loadTags();
+        await loadIO();
+        startAutoRefresh();
+    } catch (_) {}
+}
+
 function showAlert(msg, type) {
     const a = document.createElement('div');
     a.className = `alert alert-${type}`;
@@ -1065,3 +1089,4 @@ function escAttr(t) {
 }
 
 loadHistory();
+syncServerState();
