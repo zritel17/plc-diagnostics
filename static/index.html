@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PLC Edge Gateway — Allen-Bradley</title>
-    <link rel="stylesheet" href="/static/styles.css?v=32">
+    <link rel="stylesheet" href="/static/styles.css?v=33">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -270,17 +270,18 @@
                     </div>
 
                     <div class="card">
-                        <div class="card-title">Add widget</div>
-                        <div class="card-body">
+                        <div class="card-title">Add / Edit widget</div>
+                        <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
                             <div class="form-row">
                                 <label>Tag</label>
-                                <select id="widTag" style="min-width: 220px;"></select>
+                                <select id="widTag" style="min-width:200px;"></select>
                                 <label>Type</label>
                                 <select id="widType">
                                     <option value="line_chart">Chart</option>
                                     <option value="gauge">Gauge</option>
                                     <option value="stat">Number</option>
                                     <option value="table">Table</option>
+                                    <option value="boolean">Boolean</option>
                                 </select>
                                 <label>Period</label>
                                 <select id="widRange">
@@ -301,7 +302,30 @@
                                     <option value="last">last</option>
                                     <option value="sum">sum</option>
                                 </select>
+                            </div>
+                            <div class="form-row" id="wGaugeRow" style="display:none;">
+                                <label>Gauge min</label>
+                                <input type="number" id="wGaugeMin" placeholder="auto" style="width:80px;" />
+                                <label>Gauge max</label>
+                                <input type="number" id="wGaugeMax" placeholder="auto" style="width:80px;" />
+                            </div>
+                            <div class="form-row" id="wThresholdRow" style="display:none;">
+                                <label style="color:#ef4444;">HH</label>
+                                <input type="number" id="wThresholdHH" placeholder="—" style="width:70px;" />
+                                <label style="color:#f59e0b;">H</label>
+                                <input type="number" id="wThresholdH" placeholder="—" style="width:70px;" />
+                                <label style="color:#3b82f6;">L</label>
+                                <input type="number" id="wThresholdL" placeholder="—" style="width:70px;" />
+                                <label style="color:#8b5cf6;">LL</label>
+                                <input type="number" id="wThresholdLL" placeholder="—" style="width:70px;" />
+                            </div>
+                            <div class="form-row">
+                                <label>Points</label>
+                                <input type="number" id="wMaxPoints" value="100" min="10" max="2000" style="width:70px;" />
+                                <label>Color</label>
+                                <input type="color" id="wColor" value="#667eea" style="width:44px;padding:2px;height:30px;cursor:pointer;" />
                                 <button class="btn" id="widAddBtn">+ Add</button>
+                                <button class="btn btn-secondary btn-small" id="widCancelEditBtn" style="display:none;">Cancel</button>
                             </div>
                         </div>
                     </div>
@@ -536,16 +560,16 @@
     </div>
 </div>
 
-    <script src="/static/app.js?v=32"></script>
-    <script src="/static/collector.js?v=32"></script>
-    <script src="/static/config.js?v=32"></script>
-    <script src="/static/dashboard.js?v=32"></script>
-    <script src="/static/control.js?v=32"></script>
-    <script src="/static/diagnostics.js?v=32"></script>
-    <script src="/static/recipes.js?v=32"></script>
-    <script src="/static/ai.js?v=32"></script>
-    <script src="/static/settings.js?v=32"></script>
-    <script src="/static/database.js?v=32"></script>
-    <script src="/static/init_extras.js?v=32"></script>
+    <script src="/static/app.js?v=33"></script>
+    <script src="/static/collector.js?v=33"></script>
+    <script src="/static/config.js?v=33"></script>
+    <script src="/static/dashboard.js?v=33"></script>
+    <script src="/static/control.js?v=33"></script>
+    <script src="/static/diagnostics.js?v=33"></script>
+    <script src="/static/recipes.js?v=33"></script>
+    <script src="/static/ai.js?v=33"></script>
+    <script src="/static/settings.js?v=33"></script>
+    <script src="/static/database.js?v=33"></script>
+    <script src="/static/init_extras.js?v=33"></script>
 </body>
 </html>

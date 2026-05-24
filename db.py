@@ -241,10 +241,18 @@ class InfluxClient:
             "daily": INFLUX_BUCKET_DAILY,
         }.get(bucket, INFLUX_BUCKET_RAW)
 
-        # Защита от слишком большого результата: aggregateWindow если задан agg
+        def _range_sec(f: str) -> int:
+            import re as _re
+            m = _re.match(r'-(\d+)([smhd])', (f or '').strip())
+            if not m:
+                return 3600
+            n, u = int(m.group(1)), m.group(2)
+            return n * {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}[u]
+
         agg_clause = ""
         if agg in ("mean", "min", "max", "last", "first", "sum"):
-            agg_clause = f'  |> aggregateWindow(every: 1m, fn: {agg}, createEmpty: false)\n'
+            every_sec = max(1, _range_sec(frm) // max_points)
+            agg_clause = f'  |> aggregateWindow(every: {every_sec}s, fn: {agg}, createEmpty: false)\n'
 
         flux = (
             f'from(bucket: "{b}")\n'

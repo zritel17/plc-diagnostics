@@ -59,7 +59,7 @@ class CollectorStatus(BaseModel):
 
 class WidgetIn(BaseModel):
     tag_name: str
-    widget_type: Literal["line_chart", "gauge", "table", "stat"]
+    widget_type: Literal["line_chart", "gauge", "table", "stat", "boolean"]
     time_range: str = "1h"
     aggregation: Optional[str] = None
     position_x: int = 0
@@ -67,6 +67,14 @@ class WidgetIn(BaseModel):
     width: int = 6
     height: int = 4
     title: Optional[str] = None
+    gauge_min:    Optional[float] = None
+    gauge_max:    Optional[float] = None
+    threshold_hh: Optional[float] = None
+    threshold_h:  Optional[float] = None
+    threshold_l:  Optional[float] = None
+    threshold_ll: Optional[float] = None
+    max_points:   int = 100
+    color:        Optional[str] = None
 
 
 class WidgetOut(WidgetIn):
