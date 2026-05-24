@@ -81,6 +81,14 @@ class Widget(Base):
     width: Mapped[int] = mapped_column(Integer, default=6)
     height: Mapped[int] = mapped_column(Integer, default=4)
     title: Mapped[Optional[str]] = mapped_column(String, default=None)
+    gauge_min: Mapped[Optional[float]] = mapped_column(Float, default=None)
+    gauge_max: Mapped[Optional[float]] = mapped_column(Float, default=None)
+    threshold_hh: Mapped[Optional[float]] = mapped_column(Float, default=None)
+    threshold_h: Mapped[Optional[float]] = mapped_column(Float, default=None)
+    threshold_l: Mapped[Optional[float]] = mapped_column(Float, default=None)
+    threshold_ll: Mapped[Optional[float]] = mapped_column(Float, default=None)
+    max_points: Mapped[int] = mapped_column(Integer, default=100)
+    color: Mapped[Optional[str]] = mapped_column(String, default=None)
     dashboard: Mapped[Dashboard] = relationship(back_populates="widgets")
 
 
@@ -106,11 +114,22 @@ class RecipeChange(Base):
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Migrate existing tags_config table (SQLAlchemy create_all won't add new columns)
-        try:
-            await conn.execute(text("ALTER TABLE tags_config ADD COLUMN description TEXT"))
-        except Exception:
-            pass  # column already exists
+        # Migrate existing tables (SQLAlchemy create_all won't add new columns)
+        for stmt in [
+            "ALTER TABLE tags_config ADD COLUMN description TEXT",
+            "ALTER TABLE widgets ADD COLUMN gauge_min REAL",
+            "ALTER TABLE widgets ADD COLUMN gauge_max REAL",
+            "ALTER TABLE widgets ADD COLUMN threshold_hh REAL",
+            "ALTER TABLE widgets ADD COLUMN threshold_h REAL",
+            "ALTER TABLE widgets ADD COLUMN threshold_l REAL",
+            "ALTER TABLE widgets ADD COLUMN threshold_ll REAL",
+            "ALTER TABLE widgets ADD COLUMN max_points INTEGER DEFAULT 100",
+            "ALTER TABLE widgets ADD COLUMN color TEXT",
+        ]:
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
+                pass  # column already exists
     async with SessionLocal() as s:
         row = await s.get(CollectorSettings, 1)
         if row is None:
