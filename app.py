@@ -1302,12 +1302,9 @@ async def get_batch_data(body: BatchDataRequest):
     tasks = [fetch_one(item) for item in body.items]
     results = await asyncio.gather(*tasks)
 
-    # Ключ = "tag::type" чтобы один тег мог использоваться разными виджетами
-    output = {}
-    for item, result in zip(body.items, results):
-        output[f"{item.tag}::{item.type}"] = result
-
-    return {"results": output}
+    # Return as array so widgets are matched by index, not by tag::type key
+    # (avoids collision when the same tag appears in multiple widgets with different ranges)
+    return {"results": list(results)}
 
 
 # ============================================================================

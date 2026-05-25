@@ -273,7 +273,7 @@ class InfluxClient:
         if not self.available:
             return []
         if bucket == "raw":
-            b = self._select_bucket(frm)
+            b = INFLUX_BUCKET_RAW  # always use raw; plc_hourly/plc_daily need InfluxDB tasks
         else:
             b = {
                 "hourly": INFLUX_BUCKET_HOURLY,

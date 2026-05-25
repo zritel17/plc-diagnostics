@@ -78,14 +78,16 @@ window.Dashboards = (() => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ items }),
             });
-            results = (await r.json()).results || {};
+            results = (await r.json()).results;
         } catch (e) {
             return byId;  // fall back to per-widget fetches
         }
-        for (const w of widgets) {
+        if (!Array.isArray(results)) return byId;
+        for (let i = 0; i < widgets.length; i++) {
+            const w   = widgets[i];
+            const raw = results[i];
+            if (raw === undefined || raw === null || (raw && raw.error)) continue;
             const type = widgetDataType(w);
-            const raw  = results[`${w.tag_name}::${type}`];
-            if (raw === undefined || (raw && raw.error)) continue;
             if (type === 'history')       byId.set(w.id, { points: raw || [] });
             else if (type === 'stats')    byId.set(w.id, { stats: raw || {} });
             else if (type === 'timeline') byId.set(w.id, { events: raw || [] });
