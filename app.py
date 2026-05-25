@@ -1243,6 +1243,12 @@ async def data_stats(
     return {"tag_name": tag_name, "stats": stats, "available": influx.available}
 
 
+@app.get("/api/data/{tag_name:path}/delta")
+async def data_delta(tag_name: str, range: str = Query("8h")):
+    result = await asyncio.to_thread(influx.query_delta, tag_name, f"-{range}")
+    return result
+
+
 # ============================================================================
 # НОВОЕ: Дашборды
 # ============================================================================

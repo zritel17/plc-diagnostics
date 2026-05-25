@@ -343,6 +343,39 @@ class InfluxClient:
             self.last_error = f"stats {tag_name}: {e}"
         return out
 
+    def query_delta(self, tag_name: str, frm: str = "-8h") -> Dict[str, Any]:
+        """Вычислить delta (last - first) за период. Для DINT счётчиков."""
+        if not self.available:
+            return {}
+        results = {}
+        for fn in ("first", "last"):
+            flux = (
+                f'from(bucket: "{INFLUX_BUCKET_RAW}")\n'
+                f'  |> range(start: {frm})\n'
+                f'  |> filter(fn: (r) => r._measurement == "tag_values" '
+                f'and r.tag_name == "{tag_name}" and r._field == "value")\n'
+                f'  |> {fn}()\n'
+                f'  |> keep(columns: ["_value", "_time"])'
+            )
+            try:
+                tables = self._query_api.query(flux, org=INFLUX_ORG)
+                for t in tables:
+                    for rec in t.records:
+                        results[fn] = {"value": rec.get_value(), "time": rec.get_time().isoformat()}
+            except Exception as e:
+                self.last_error = f"delta {fn} {tag_name}: {e}"
+
+        if "first" in results and "last" in results:
+            delta = results["last"]["value"] - results["first"]["value"]
+            return {
+                "delta": max(0, delta),  # счётчик не может уменьшиться в норме
+                "first": results["first"]["value"],
+                "last": results["last"]["value"],
+                "first_time": results["first"]["time"],
+                "last_time": results["last"]["time"],
+            }
+        return {}
+
 
     def db_summary(self) -> Dict[str, Any]:
         tags = self.list_tags_with_data()

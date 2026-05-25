@@ -330,6 +330,18 @@ window.Dashboards = (() => {
 
             // ── stat ─────────────────────────────────────────────────────────
             if (w.widget_type === 'stat') {
+                if (w.aggregation === 'delta') {
+                    const rng = effectiveRange.replace(/^-/, '');
+                    const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/delta?range=${encodeURIComponent(rng)}`);
+                    const d = await r.json();
+                    const has = d.delta != null;
+                    body.innerHTML = `
+                        <div style="text-align:center;">
+                            <div class="stat-value">${has ? formatVal(d.delta) : '—'}</div>
+                            <div class="stat-meta">Δ ${rangeLabel(w.time_range)}${has ? ` · ${formatVal(d.first)} → ${formatVal(d.last)}` : ''}</div>
+                        </div>`;
+                    return;
+                }
                 const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/stats?from=${encodeURIComponent(effectiveRange)}`);
                 const d = await r.json();
                 const last = d.stats?.last;
