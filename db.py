@@ -298,24 +298,33 @@ class InfluxClient:
     def stats(self, tag_name: str, frm: str = "-1h", to: str = "now()") -> Dict[str, float]:
         if not self.available:
             return {}
+        base = (
+            f'data = from(bucket: "{INFLUX_BUCKET_RAW}")\n'
+            f'  |> range(start: {frm}, stop: {to})\n'
+            f'  |> filter(fn: (r) => r._measurement == "tag_values" '
+            f'and r.tag_name == "{tag_name}" and r._field == "value")\n'
+        )
+        flux = (
+            base +
+            'union(tables: [\n'
+            '  data |> mean()  |> map(fn: (r) => ({r with _fn: "mean"})),\n'
+            '  data |> min()   |> map(fn: (r) => ({r with _fn: "min"})),\n'
+            '  data |> max()   |> map(fn: (r) => ({r with _fn: "max"})),\n'
+            '  data |> last()  |> map(fn: (r) => ({r with _fn: "last"})),\n'
+            '  data |> first() |> map(fn: (r) => ({r with _fn: "first"})),\n'
+            '])'
+        )
         out: Dict[str, float] = {}
-        for fn in ("mean", "min", "max", "last", "first"):
-            flux = (
-                f'from(bucket: "{INFLUX_BUCKET_RAW}")\n'
-                f'  |> range(start: {frm}, stop: {to})\n'
-                f'  |> filter(fn: (r) => r._measurement == "tag_values" '
-                f'and r.tag_name == "{tag_name}" and r._field == "value")\n'
-                f'  |> {fn}()'
-            )
-            try:
-                tables = self._query_api.query(flux, org=INFLUX_ORG)
-                for t in tables:
-                    for rec in t.records:
-                        v = rec.get_value()
-                        if v is not None:
-                            out[fn] = float(v)
-            except Exception:
-                pass
+        try:
+            tables = self._query_api.query(flux, org=INFLUX_ORG)
+            for t in tables:
+                for rec in t.records:
+                    fn_name = rec.values.get("_fn", "")
+                    v = rec.get_value()
+                    if fn_name and v is not None:
+                        out[fn_name] = float(v)
+        except Exception as e:
+            self.last_error = f"stats {tag_name}: {e}"
         return out
 
 
