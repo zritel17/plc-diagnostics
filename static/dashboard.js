@@ -403,6 +403,58 @@ window.Dashboards = (() => {
                 return;
             }
 
+            // ── donut (uptime %) ──────────────────────────────────────────────
+            if (w.widget_type === 'donut') {
+                const rng = effectiveRange.replace(/^-/, '');
+                const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/uptime?range=${encodeURIComponent(rng)}`);
+                const d = await r.json();
+                if (d.uptime_pct == null) {
+                    body.innerHTML = '<div class="widget-empty">No data for period</div>';
+                    return;
+                }
+                const up = d.uptime_pct, down = d.downtime_pct;
+                const existing = widgetCharts.get(w.id);
+                if (existing && existing.config.type === 'doughnut') {
+                    existing.data.datasets[0].data = [up, down];
+                    existing.$uptimePct = up;
+                    existing.update('none');
+                    return;
+                }
+                if (existing) existing.destroy();
+                body.innerHTML = `<canvas id="chart-${w.id}" style="width:100%;height:100%;"></canvas>`;
+                const centerText = {
+                    id: 'centerText',
+                    afterDraw(chart) {
+                        const { ctx, chartArea: { left, right, top, bottom } } = chart;
+                        ctx.save();
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillStyle = '#22c55e';
+                        ctx.font = '700 22px Inter, sans-serif';
+                        ctx.fillText((chart.$uptimePct ?? 0) + '%', (left + right) / 2, (top + bottom) / 2);
+                        ctx.restore();
+                    },
+                };
+                const chart = new Chart(document.getElementById(`chart-${w.id}`), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Uptime', 'Downtime'],
+                        datasets: [{ data: [up, down], backgroundColor: ['#22c55e', '#e5e7eb'], borderWidth: 0 }],
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false, animation: false, cutout: '70%',
+                        plugins: {
+                            legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 } } },
+                            tooltip: { backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1 },
+                        },
+                    },
+                    plugins: [centerText],
+                });
+                chart.$uptimePct = up;
+                widgetCharts.set(w.id, chart);
+                return;
+            }
+
             // ── state_timeline ────────────────────────────────────────────────
             if (w.widget_type === 'state_timeline') {
                 const rng = effectiveRange.replace(/^-/, '');

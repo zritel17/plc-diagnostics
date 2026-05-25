@@ -475,6 +475,30 @@ class InfluxClient:
             self.last_error = f"timeline {tag_name}: {e}"
             return []
 
+    def query_uptime(self, tag_name: str, frm: str = "-8h") -> Dict[str, float]:
+        """Взвешенное по времени среднее для BOOL тега = % времени в состоянии 1."""
+        if not self.available:
+            return {}
+        flux = (
+            f'from(bucket: "{INFLUX_BUCKET_RAW}")\n'
+            f'  |> range(start: {frm})\n'
+            f'  |> filter(fn: (r) => r._measurement == "tag_values" '
+            f'and r.tag_name == "{tag_name}" and r._field == "value")\n'
+            f'  |> toFloat()\n'
+            f'  |> timeWeightedAverage(unit: 1s)'
+        )
+        try:
+            tables = self._query_api.query(flux, org=INFLUX_ORG)
+            for t in tables:
+                for rec in t.records:
+                    v = rec.get_value()
+                    if v is not None:
+                        pct = round(float(v) * 100, 1)
+                        return {"uptime_pct": pct, "downtime_pct": round(100 - pct, 1)}
+        except Exception as e:
+            self.last_error = f"uptime {tag_name}: {e}"
+        return {}
+
 
     def db_summary(self) -> Dict[str, Any]:
         tags = self.list_tags_with_data()

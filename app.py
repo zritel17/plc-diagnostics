@@ -1266,6 +1266,12 @@ async def data_timeline(tag_name: str, range: str = Query("8h")):
     return {"events": result}
 
 
+@app.get("/api/data/{tag_name:path}/uptime")
+async def data_uptime(tag_name: str, range: str = Query("8h")):
+    result = await asyncio.to_thread(influx.query_uptime, tag_name, f"-{range}")
+    return result
+
+
 # ============================================================================
 # НОВОЕ: Дашборды
 # ============================================================================
