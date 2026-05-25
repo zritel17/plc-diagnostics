@@ -351,13 +351,18 @@ window.Dashboards = (() => {
 
             // ── table ─────────────────────────────────────────────────────────
             if (w.widget_type === 'table') {
-                const rows = [...points].reverse().map(p => `
+                const TABLE_MAX_ROWS = 50;
+                const recent = points.slice(-TABLE_MAX_ROWS).reverse();  // newest first, capped
+                const rows = recent.map(p => `
                     <tr><td>${new Date(p.time).toLocaleString()}</td><td>${formatVal(p.value)}</td></tr>`).join('');
+                const note = points.length > TABLE_MAX_ROWS
+                    ? `<div class="stat-meta" style="padding:4px 8px;">showing last ${TABLE_MAX_ROWS} of ${points.length}</div>`
+                    : '';
                 body.innerHTML = `<div style="width:100%;max-height:100%;overflow:auto;">
                     <table class="data-table" style="width:100%">
                         <thead><tr><th>Time</th><th>Value</th></tr></thead>
                         <tbody>${rows || '<tr><td colspan="2" class="empty-row">no data</td></tr>'}</tbody>
-                    </table></div>`;
+                    </table>${note}</div>`;
                 return;
             }
 
