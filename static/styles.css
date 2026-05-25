@@ -1235,3 +1235,6 @@ body.kiosk .pkl-app:not(.sidebar-hidden) .pkl-sidebar {
 .sidebar-backdrop.active {
   display: block;
 }
+
+/* state_timeline widget — canvas-based on/off ribbon */
+.widget-body > div > canvas { min-height: 56px; }

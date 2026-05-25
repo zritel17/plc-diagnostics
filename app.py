@@ -1260,6 +1260,12 @@ async def data_bars(
     return result
 
 
+@app.get("/api/data/{tag_name:path}/timeline")
+async def data_timeline(tag_name: str, range: str = Query("8h")):
+    result = await asyncio.to_thread(influx.query_timeline, tag_name, f"-{range}")
+    return {"events": result}
+
+
 # ============================================================================
 # НОВОЕ: Дашборды
 # ============================================================================

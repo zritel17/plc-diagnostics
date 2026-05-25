@@ -403,6 +403,16 @@ window.Dashboards = (() => {
                 return;
             }
 
+            // ── state_timeline ────────────────────────────────────────────────
+            if (w.widget_type === 'state_timeline') {
+                const rng = effectiveRange.replace(/^-/, '');
+                const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/timeline?range=${encodeURIComponent(rng)}`);
+                const d = await r.json();
+                body.innerHTML = `<div style="width:100%;height:100%;"><canvas id="tl-${w.id}" style="width:100%;height:100%;display:block;"></canvas></div>`;
+                renderTimeline(document.getElementById(`tl-${w.id}`), d.events || [], rangeToMs(effectiveRange));
+                return;
+            }
+
             // ── fetch history ─────────────────────────────────────────────────
             const url = `/api/data/${encodeURIComponent(w.tag_name)}/history?from=${encodeURIComponent(effectiveRange)}&max_points=${mp}` +
                         (w.aggregation ? `&agg=${encodeURIComponent(w.aggregation)}` : '');
@@ -578,6 +588,53 @@ window.Dashboards = (() => {
         } catch (e) {
             body.innerHTML = `<div class="widget-empty">Error: ${esc(e.message || e)}</div>`;
         }
+    }
+
+    function rangeToMs(r) {
+        const m = String(r).match(/-?(\d+)([smhd])/);
+        if (!m) return 3600000;
+        return (+m[1]) * ({ s: 1000, m: 60000, h: 3600000, d: 86400000 }[m[2]]);
+    }
+
+    function renderTimeline(canvas, events, rangeMs) {
+        const ctx = canvas.getContext('2d');
+        const W = canvas.offsetWidth || canvas.width;
+        const H = canvas.offsetHeight || canvas.height;
+        canvas.width = W; canvas.height = H;
+        ctx.clearRect(0, 0, W, H);
+
+        if (!events || events.length < 2) {
+            ctx.fillStyle = '#9ca3af';
+            ctx.font = '12px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('No data', W / 2, H / 2);
+            return;
+        }
+
+        const now = Date.now();
+        const start = now - rangeMs;
+
+        for (let i = 0; i < events.length - 1; i++) {
+            const ev = events[i], next = events[i + 1];
+            const x1 = Math.max(0, ((ev.ts - start) / rangeMs) * W);
+            const x2 = Math.min(W, ((next.ts - start) / rangeMs) * W);
+            if (x2 <= x1) continue;
+            ctx.fillStyle = ev.value ? '#22c55e' : '#e5e7eb';
+            ctx.fillRect(x1, 4, x2 - x1 - 1, H - 22);
+        }
+        // Последний сегмент до now
+        const last = events[events.length - 1];
+        const xLast = Math.max(0, ((last.ts - start) / rangeMs) * W);
+        ctx.fillStyle = last.value ? '#22c55e' : '#e5e7eb';
+        ctx.fillRect(xLast, 4, W - xLast, H - 22);
+
+        // Подписи времени по краям
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(new Date(start).toLocaleTimeString(), 2, H - 4);
+        ctx.textAlign = 'right';
+        ctx.fillText(new Date(now).toLocaleTimeString(), W - 2, H - 4);
     }
 
     function formatVal(v) {

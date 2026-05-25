@@ -448,6 +448,33 @@ class InfluxClient:
             self.last_error = f"bars {tag_name}: {e}"
             return {"labels": [], "values": []}
 
+    def query_timeline(self, tag_name: str, frm: str = "-8h") -> List[Dict[str, Any]]:
+        """События on-change для построения ленты состояний."""
+        if not self.available:
+            return []
+        flux = (
+            f'from(bucket: "{INFLUX_BUCKET_RAW}")\n'
+            f'  |> range(start: {frm})\n'
+            f'  |> filter(fn: (r) => r._measurement == "tag_values" '
+            f'and r.tag_name == "{tag_name}" and r._field == "value")\n'
+            f'  |> sort(columns: ["_time"])\n'
+            f'  |> limit(n: 2000)'
+        )
+        try:
+            tables = self._query_api.query(flux, org=INFLUX_ORG)
+            out = []
+            for t in tables:
+                for rec in t.records:
+                    out.append({
+                        "time": rec.get_time().isoformat(),
+                        "ts": int(rec.get_time().timestamp() * 1000),  # ms для JS
+                        "value": 1 if rec.get_value() else 0,
+                    })
+            return out
+        except Exception as e:
+            self.last_error = f"timeline {tag_name}: {e}"
+            return []
+
 
     def db_summary(self) -> Dict[str, Any]:
         tags = self.list_tags_with_data()

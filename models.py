@@ -61,7 +61,7 @@ class WidgetIn(BaseModel):
     tag_name: str
     widget_type: Literal[
         "line_chart", "gauge", "table", "stat", "boolean",
-        "bar_chart",
+        "bar_chart", "state_timeline",
     ]
     time_range: str = "1h"
     aggregation: Optional[str] = None
