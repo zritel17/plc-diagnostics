@@ -93,6 +93,8 @@ window.Dashboards = (() => {
             threshold_ll:  w.threshold_ll ?? null,
             max_points:    w.max_points ?? 100,
             color:         w.color || null,
+            bar_window:    w.bar_window || null,
+            bar_count:     w.bar_count ?? 7,
         }));
     }
 
@@ -123,6 +125,8 @@ window.Dashboards = (() => {
             threshold_ll:  parseOptionalFloat('wThresholdLL'),
             max_points:    Math.max(10, Math.min(2000, parseInt(document.getElementById('wMaxPoints')?.value || '100', 10))),
             color:         document.getElementById('wColor')?.value || null,
+            bar_window:    document.getElementById('wBarWindow')?.value || null,
+            bar_count:     Math.max(2, Math.min(60, parseInt(document.getElementById('wBarCount')?.value || '7', 10))),
         };
     }
 
@@ -205,6 +209,8 @@ window.Dashboards = (() => {
         setVal('wThresholdH',   w.threshold_h  ?? '');
         setVal('wThresholdL',   w.threshold_l  ?? '');
         setVal('wThresholdLL',  w.threshold_ll ?? '');
+        setVal('wBarWindow',    w.bar_window || '8h');
+        setVal('wBarCount',     w.bar_count ?? 7);
         const addBtn = document.getElementById('widAddBtn');
         if (addBtn) addBtn.textContent = 'Save changes';
         const cancelBtn = document.getElementById('widCancelEditBtn');
@@ -225,8 +231,10 @@ window.Dashboards = (() => {
         const type = document.getElementById('widType')?.value;
         const gaugeRow = document.getElementById('wGaugeRow');
         const threshRow = document.getElementById('wThresholdRow');
+        const barRow = document.getElementById('wBarRow');
         if (gaugeRow)  gaugeRow.style.display  = type === 'gauge' ? '' : 'none';
         if (threshRow) threshRow.style.display = (type === 'line_chart' || type === 'gauge') ? '' : 'none';
+        if (barRow)    barRow.style.display    = type === 'bar_chart' ? '' : 'none';
     }
 
     async function removeWidget(widgetId) {
@@ -351,6 +359,46 @@ window.Dashboards = (() => {
                         <div class="stat-value">${last != null ? formatVal(last) : '—'}</div>
                         <div class="stat-meta">last · mean: ${mean != null ? formatVal(mean) : '—'}</div>
                     </div>`;
+                return;
+            }
+
+            // ── bar_chart ─────────────────────────────────────────────────────
+            if (w.widget_type === 'bar_chart') {
+                const win   = w.bar_window || '8h';
+                const cnt   = w.bar_count ?? 7;
+                const bAgg  = w.aggregation === 'delta' ? 'delta' : (w.aggregation || 'mean');
+                const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/bars?window=${encodeURIComponent(win)}&count=${cnt}&agg=${encodeURIComponent(bAgg)}`);
+                const d = await r.json();
+                const labels = d.labels || [];
+                const values = d.values || [];
+                if (!labels.length) {
+                    body.innerHTML = '<div class="widget-empty">No data for period</div>';
+                    return;
+                }
+                const fill = bAgg === 'delta' ? 'rgba(34, 197, 94, 0.7)' : (w.color || 'rgba(59, 130, 246, 0.7)');
+                const existing = widgetCharts.get(w.id);
+                if (existing && existing._tagName === w.tag_name && existing.config.type === 'bar') {
+                    existing.data.labels = labels;
+                    existing.data.datasets[0].data = values;
+                    existing.update('none');
+                    return;
+                }
+                if (existing) existing.destroy();
+                body.innerHTML = `<canvas id="chart-${w.id}" style="width:100%;height:100%;"></canvas>`;
+                const chart = new Chart(document.getElementById(`chart-${w.id}`), {
+                    type: 'bar',
+                    data: { labels, datasets: [{ label: w.title || w.tag_name, data: values, backgroundColor: fill, borderRadius: 4 }] },
+                    options: {
+                        responsive: true, maintainAspectRatio: false, animation: false,
+                        scales: {
+                            x: { ticks: { color: '#94a3b8', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
+                            y: { beginAtZero: true, ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.1)' } },
+                        },
+                        plugins: { legend: { display: false }, tooltip: { backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1 } },
+                    },
+                });
+                chart._tagName = w.tag_name;
+                widgetCharts.set(w.id, chart);
                 return;
             }
 

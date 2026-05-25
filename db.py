@@ -89,6 +89,8 @@ class Widget(Base):
     threshold_ll: Mapped[Optional[float]] = mapped_column(Float, default=None)
     max_points: Mapped[int] = mapped_column(Integer, default=100)
     color: Mapped[Optional[str]] = mapped_column(String, default=None)
+    bar_window: Mapped[Optional[str]] = mapped_column(String, default=None)
+    bar_count: Mapped[Optional[int]] = mapped_column(Integer, default=7)
     dashboard: Mapped[Dashboard] = relationship(back_populates="widgets")
 
 
@@ -125,6 +127,8 @@ async def init_db():
             "ALTER TABLE widgets ADD COLUMN threshold_ll REAL",
             "ALTER TABLE widgets ADD COLUMN max_points INTEGER DEFAULT 100",
             "ALTER TABLE widgets ADD COLUMN color TEXT",
+            "ALTER TABLE widgets ADD COLUMN bar_window TEXT",
+            "ALTER TABLE widgets ADD COLUMN bar_count INTEGER DEFAULT 7",
         ]:
             try:
                 await conn.execute(text(stmt))
@@ -375,6 +379,74 @@ class InfluxClient:
                 "last_time": results["last"]["time"],
             }
         return {}
+
+    def query_bars(self, tag_name: str, window: str = "8h", count: int = 7,
+                   agg: str = "mean") -> Dict[str, Any]:
+        """Агрегация по временным окнам для столбчатой диаграммы."""
+        if not self.available:
+            return {"labels": [], "values": []}
+
+        # Для delta используем last в aggregateWindow, потом diff в Python
+        flux_agg = "last" if agg == "delta" else agg
+
+        # Диапазон = count * window
+        import re
+        m = re.match(r'(\d+)([smhd])', window)
+        if m:
+            n, u = int(m.group(1)), m.group(2)
+            secs = n * {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}[u]
+            total_secs = secs * count
+            frm = f"-{total_secs}s"
+        else:
+            frm = f"-{count}d"
+
+        flux = (
+            f'from(bucket: "{INFLUX_BUCKET_RAW}")\n'
+            f'  |> range(start: {frm})\n'
+            f'  |> filter(fn: (r) => r._measurement == "tag_values" '
+            f'and r.tag_name == "{tag_name}" and r._field == "value")\n'
+            f'  |> aggregateWindow(every: {window}, fn: {flux_agg}, createEmpty: false)\n'
+            f'  |> sort(columns: ["_time"])'
+        )
+
+        try:
+            tables = self._query_api.query(flux, org=INFLUX_ORG)
+            points = []
+            for t in tables:
+                for rec in t.records:
+                    v = rec.get_value()
+                    if v is None:
+                        continue
+                    points.append({"time": rec.get_time(), "value": v})
+
+            if not points:
+                return {"labels": [], "values": []}
+
+            # Для delta: разница между соседними last-значениями
+            if agg == "delta":
+                values = []
+                for i in range(1, len(points)):
+                    diff = points[i]["value"] - points[i - 1]["value"]
+                    values.append(max(0, diff))
+                points = points[1:]  # убираем первую точку (нет предыдущей)
+            else:
+                values = [p["value"] for p in points]
+
+            # Форматирование меток времени
+            labels = []
+            for p in points:
+                t = p["time"]
+                if window.endswith('d'):
+                    labels.append(t.strftime("%d.%m"))
+                elif window.endswith('h') and int(window[:-1]) >= 8:
+                    labels.append(t.strftime("%d.%m %H:%M"))
+                else:
+                    labels.append(t.strftime("%H:%M"))
+
+            return {"labels": labels, "values": values}
+        except Exception as e:
+            self.last_error = f"bars {tag_name}: {e}"
+            return {"labels": [], "values": []}
 
 
     def db_summary(self) -> Dict[str, Any]:

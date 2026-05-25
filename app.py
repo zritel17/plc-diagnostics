@@ -1249,6 +1249,17 @@ async def data_delta(tag_name: str, range: str = Query("8h")):
     return result
 
 
+@app.get("/api/data/{tag_name:path}/bars")
+async def data_bars(
+    tag_name: str,
+    window: str = Query("8h"),
+    count: int = Query(7),
+    agg: str = Query("mean"),
+):
+    result = await asyncio.to_thread(influx.query_bars, tag_name, window, count, agg)
+    return result
+
+
 # ============================================================================
 # НОВОЕ: Дашборды
 # ============================================================================
