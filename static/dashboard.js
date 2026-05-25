@@ -44,13 +44,64 @@ window.Dashboards = (() => {
         }
     }
 
+    // Map a widget to the batch data type it consumes.
+    function widgetDataType(w) {
+        if (w.widget_type === 'stat' && w.aggregation === 'delta') return 'delta';
+        const map = {
+            line_chart: 'history', table: 'history', gauge: 'history', boolean: 'history',
+            stat: 'stats', bar_chart: 'bars', state_timeline: 'timeline', donut: 'uptime',
+        };
+        return map[w.widget_type] || 'history';
+    }
+
+    // One POST /api/data/batch for all widgets; returns Map<widgetId, prefetched>
+    // where each prefetched object matches the shape the widget branch expects.
+    async function loadAllWidgetData(widgets) {
+        const items = widgets.map(w => {
+            const eff  = w.time_range === 'realtime' ? REALTIME_RANGE : w.time_range;
+            const type = widgetDataType(w);
+            return {
+                tag:        w.tag_name,
+                type,
+                range:      String(eff).replace(/^-/, ''),
+                agg:        type === 'history' ? (w.aggregation || '') : (w.aggregation || 'mean'),
+                window:     w.bar_window || '8h',
+                count:      w.bar_count || 7,
+                max_points: type === 'history' ? Math.max(10, Math.min(2000, w.max_points ?? 100)) : 200,
+            };
+        });
+        const byId = new Map();
+        let results;
+        try {
+            const r = await fetch('/api/data/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items }),
+            });
+            results = (await r.json()).results || {};
+        } catch (e) {
+            return byId;  // fall back to per-widget fetches
+        }
+        for (const w of widgets) {
+            const type = widgetDataType(w);
+            const raw  = results[`${w.tag_name}::${type}`];
+            if (raw === undefined || (raw && raw.error)) continue;
+            if (type === 'history')       byId.set(w.id, { points: raw || [] });
+            else if (type === 'stats')    byId.set(w.id, { stats: raw || {} });
+            else if (type === 'timeline') byId.set(w.id, { events: raw || [] });
+            else                          byId.set(w.id, raw || {});
+        }
+        return byId;
+    }
+
     async function loadDashboard(id) {
         try {
             const r = await fetch(`/api/dashboard/${id}`);
             if (!r.ok) return;
             current = await r.json();
             renderGrid();
-            for (const w of current.widgets) refreshWidget(w);
+            const prefetch = await loadAllWidgetData(current.widgets);
+            for (const w of current.widgets) refreshWidget(w, prefetch.get(w.id));
         } catch (e) {
             console.error('loadDashboard:', e);
         }
@@ -301,7 +352,7 @@ window.Dashboards = (() => {
         });
     }
 
-    async function refreshWidget(w) {
+    async function refreshWidget(w, prefetched) {
         const body = document.getElementById(`wbody-${w.id}`);
         if (!body) return;
 
@@ -321,8 +372,7 @@ window.Dashboards = (() => {
         try {
             // ── boolean ──────────────────────────────────────────────────────
             if (w.widget_type === 'boolean') {
-                const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/history?from=${encodeURIComponent(effectiveRange)}&max_points=1`);
-                const d = await r.json();
+                const d = prefetched || await (await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/history?from=${encodeURIComponent(effectiveRange)}&max_points=1`)).json();
                 const last  = d.points?.[d.points.length - 1]?.value;
                 const isOn  = last !== null && last !== undefined && +last !== 0;
                 const clr   = isOn ? '#22c55e' : '#ef4444';
@@ -341,8 +391,7 @@ window.Dashboards = (() => {
             if (w.widget_type === 'stat') {
                 if (w.aggregation === 'delta') {
                     const rng = effectiveRange.replace(/^-/, '');
-                    const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/delta?range=${encodeURIComponent(rng)}`);
-                    const d = await r.json();
+                    const d = prefetched || await (await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/delta?range=${encodeURIComponent(rng)}`)).json();
                     const has = d.delta != null;
                     body.innerHTML = `
                         <div style="text-align:center;">
@@ -351,8 +400,7 @@ window.Dashboards = (() => {
                         </div>`;
                     return;
                 }
-                const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/stats?from=${encodeURIComponent(effectiveRange)}`);
-                const d = await r.json();
+                const d = prefetched || await (await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/stats?from=${encodeURIComponent(effectiveRange)}`)).json();
                 const last = d.stats?.last;
                 const mean = d.stats?.mean;
                 body.innerHTML = `
@@ -368,8 +416,7 @@ window.Dashboards = (() => {
                 const win   = w.bar_window || '8h';
                 const cnt   = w.bar_count ?? 7;
                 const bAgg  = w.aggregation === 'delta' ? 'delta' : (w.aggregation || 'mean');
-                const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/bars?window=${encodeURIComponent(win)}&count=${cnt}&agg=${encodeURIComponent(bAgg)}`);
-                const d = await r.json();
+                const d = prefetched || await (await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/bars?window=${encodeURIComponent(win)}&count=${cnt}&agg=${encodeURIComponent(bAgg)}`)).json();
                 const labels = d.labels || [];
                 const values = d.values || [];
                 if (!labels.length) {
@@ -406,8 +453,7 @@ window.Dashboards = (() => {
             // ── donut (uptime %) ──────────────────────────────────────────────
             if (w.widget_type === 'donut') {
                 const rng = effectiveRange.replace(/^-/, '');
-                const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/uptime?range=${encodeURIComponent(rng)}`);
-                const d = await r.json();
+                const d = prefetched || await (await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/uptime?range=${encodeURIComponent(rng)}`)).json();
                 if (d.uptime_pct == null) {
                     body.innerHTML = '<div class="widget-empty">No data for period</div>';
                     return;
@@ -458,18 +504,21 @@ window.Dashboards = (() => {
             // ── state_timeline ────────────────────────────────────────────────
             if (w.widget_type === 'state_timeline') {
                 const rng = effectiveRange.replace(/^-/, '');
-                const r = await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/timeline?range=${encodeURIComponent(rng)}`);
-                const d = await r.json();
+                const d = prefetched || await (await fetch(`/api/data/${encodeURIComponent(w.tag_name)}/timeline?range=${encodeURIComponent(rng)}`)).json();
                 body.innerHTML = `<div style="width:100%;height:100%;"><canvas id="tl-${w.id}" style="width:100%;height:100%;display:block;"></canvas></div>`;
                 renderTimeline(document.getElementById(`tl-${w.id}`), d.events || [], rangeToMs(effectiveRange));
                 return;
             }
 
-            // ── fetch history ─────────────────────────────────────────────────
-            const url = `/api/data/${encodeURIComponent(w.tag_name)}/history?from=${encodeURIComponent(effectiveRange)}&max_points=${mp}` +
-                        (w.aggregation ? `&agg=${encodeURIComponent(w.aggregation)}` : '');
-            const r = await fetch(url);
-            const d = await r.json();
+            // ── fetch history (table / gauge / line_chart) ────────────────────
+            let d;
+            if (prefetched) {
+                d = prefetched;
+            } else {
+                const url = `/api/data/${encodeURIComponent(w.tag_name)}/history?from=${encodeURIComponent(effectiveRange)}&max_points=${mp}` +
+                            (w.aggregation ? `&agg=${encodeURIComponent(w.aggregation)}` : '');
+                d = await (await fetch(url)).json();
+            }
             const points = d.points || [];
 
             // ── table ─────────────────────────────────────────────────────────
