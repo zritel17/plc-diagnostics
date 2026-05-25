@@ -288,10 +288,12 @@ class InfluxClient:
             n, u = int(m.group(1)), m.group(2)
             return n * {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}[u]
 
-        agg_clause = ""
-        if agg in ("mean", "min", "max", "last", "first", "sum"):
-            every_sec = max(1, _range_sec(frm) // max_points)
-            agg_clause = f'  |> aggregateWindow(every: {every_sec}s, fn: {agg}, createEmpty: false)\n'
+        # Always downsample so max_points are evenly distributed across the full range.
+        # Without this, tail(n=max_points) on raw high-freq data returns only the
+        # most-recent N samples (e.g. last 10 s for a 1-hour chart at 100 ms poll rate).
+        agg_fn = agg if agg in ("mean", "min", "max", "last", "first", "sum") else "last"
+        every_sec = max(1, _range_sec(frm) // max_points)
+        agg_clause = f'  |> aggregateWindow(every: {every_sec}s, fn: {agg_fn}, createEmpty: false)\n'
 
         flux = (
             f'from(bucket: "{b}")\n'
