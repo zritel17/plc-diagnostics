@@ -81,6 +81,9 @@ async def lifespan(app: FastAPI):
         print(f"[STARTUP] autostart error: {e}")
     asyncio.create_task(_plc_bg_reader())
     asyncio.create_task(_influx_reconnect_loop())
+    global _INFLUX_SEM
+    _INFLUX_SEM = asyncio.Semaphore(6)
+    asyncio.create_task(_bg_analysis_loop())
     yield
     # shutdown
     print("[SHUTDOWN] остановка…")
@@ -1550,6 +1553,11 @@ async def log_recipe_changes(tag_name: str, payload: RecipeChangesPayload):
 OLLAMA_URL  = os.getenv("OLLAMA_URL", "http://localhost:11434")
 AI_MODEL    = os.getenv("AI_MODEL", "phi3:mini")
 
+_INFLUX_SEM       = None           # asyncio.Semaphore(6), set in lifespan
+_analysis_history: list = []       # max 20 entries, newest-first
+_bg_last_has_risk: bool = False
+_bg_last_ts:       Optional[str]  = None
+
 _SYSTEM_PROMPT = (
     "You are an industrial automation expert analyzing data from an Allen-Bradley ControlLogix PLC. "
     "Respond in English. Be specific and practical. Use engineering terminology. "
@@ -1563,11 +1571,26 @@ _ANALYSIS_INTROS = {
                    "Identify potential failures, degradation trends, and preventive maintenance recommendations.\n\n",
     "report":      "Generate a summary report of equipment operation for the given period based on PLC tag data. "
                    "Include: normal operating time, detected deviations, extreme values.\n\n",
+    "breakdown_risk": (
+        "Analyze the PLC tag data for early signs of equipment degradation and upcoming failures. "
+        "Focus on: (1) numeric tags with a consistent downward or upward trend toward a limit, "
+        "(2) boolean tags with abnormally high transitions (rapid cycling = intermittent fault), "
+        "(3) counter tags with zero delta (machine may have stopped producing), "
+        "(4) tags whose current value deviates >10% from mean (sudden shift). "
+        "Rank issues: CRITICAL / WARNING / MONITOR. "
+        "For each: tag name, observed pattern, likely cause, recommended action.\n\n"
+    ),
+    "shift_compare": (
+        "Compare equipment performance between the PREVIOUS shift and CURRENT shift. "
+        "Each tag shows mean, key stats, and % change between shifts. "
+        "Identify: (1) tags with significant degradation (>10% negative change), "
+        "(2) tags that improved significantly, (3) consistent anomalies in both shifts. "
+        "Conclude: is equipment trending better or worse? What requires attention before the next shift?\n\n"
+    ),
 }
 
 
 async def _get_ai_config() -> tuple:
-    """Returns (ollama_url, ai_model) — DB overrides env if set."""
     async with SessionLocal() as s:
         ollama_row = await s.get(AppSettings, "ollama_url")
         model_row  = await s.get(AppSettings, "ai_model")
@@ -1576,37 +1599,163 @@ async def _get_ai_config() -> tuple:
     return url, model
 
 
-def _build_context_text(tag_stats: dict, current_values: dict, tag_descs: dict = None) -> str:
+def _parse_period_hours(frm: str) -> float:
+    import re as _re
+    m = _re.match(r'-(\d+)([smhd])', (frm or '').strip())
+    if not m:
+        return 8.0
+    n, u = int(m.group(1)), m.group(2)
+    return n * {'s': 1 / 3600, 'm': 1 / 60, 'h': 1.0, 'd': 24.0}[u]
+
+
+async def _fetch_tag_context(tag_name: str, tag_type: str, frm: str) -> tuple:
+    """Fetch enriched context for one tag: stats + type-specific extras."""
+    async with _INFLUX_SEM:
+        s = await asyncio.to_thread(influx.stats, tag_name, frm)
+        tt = (tag_type or "").upper()
+        if tt == "BOOL":
+            u  = await asyncio.to_thread(influx.query_uptime,   tag_name, frm)
+            tl = await asyncio.to_thread(influx.query_timeline, tag_name, frm)
+        else:
+            u, tl = {}, []
+        if tt in ("DINT", "INT", "LINT", "UDINT", "UINT"):
+            d = await asyncio.to_thread(influx.query_delta, tag_name, frm)
+        else:
+            d = {}
+    return tag_name, s, d, u, tl
+
+
+def _build_context_text(
+    tag_stats: dict,
+    current_values: dict,
+    tag_descs: dict = None,
+    tag_types: dict = None,
+    tag_deltas: dict = None,
+    tag_uptimes: dict = None,
+    tag_timelines: dict = None,
+    period_hours: float = 8.0,
+) -> str:
     lines = []
     for tag_name, s in tag_stats.items():
         if not s:
             continue
-        cur = current_values.get(tag_name)
+        tag_type  = (tag_types    or {}).get(tag_name, "").upper()
+        cur       = current_values.get(tag_name)
+        desc      = (tag_descs    or {}).get(tag_name)
+        delta_d   = (tag_deltas   or {}).get(tag_name, {})
+        uptime_d  = (tag_uptimes  or {}).get(tag_name, {})
+        timeline  = (tag_timelines or {}).get(tag_name, [])
+
+        label = f"Tag: {tag_name}"
+        if desc:
+            label += f" [{desc}]"
+        parts = [label]
+
+        if tag_type == "BOOL":
+            if uptime_d.get("uptime_pct") is not None:
+                parts.append(f"uptime={uptime_d['uptime_pct']:.1f}%")
+            transitions = len(timeline)
+            if transitions:
+                parts.append(f"transitions={transitions}")
+        else:
+            if "mean" in s:
+                parts.append(f"mean={s['mean']:.4g}")
+            if "min" in s:
+                parts.append(f"min={s['min']:.4g}")
+            if "max" in s:
+                parts.append(f"max={s['max']:.4g}")
+
+            # Trend direction and rate
+            first_v = s.get("first")
+            last_v  = s.get("last")
+            if first_v is not None and last_v is not None:
+                try:
+                    if abs(first_v) > 1e-9:
+                        pct = (last_v - first_v) / abs(first_v) * 100
+                        if pct > 2:
+                            parts.append(f"trend=⬆+{pct:.1f}%")
+                        elif pct < -2:
+                            parts.append(f"trend=⬇{pct:.1f}%")
+                        else:
+                            parts.append("trend=→")
+                        if period_hours > 0:
+                            rate = (last_v - first_v) / period_hours
+                            parts.append(f"rate={rate:+.3g}/hr")
+                except (TypeError, ValueError):
+                    pass
+
+            if delta_d.get("delta") is not None:
+                parts.append(f"delta=+{delta_d['delta']:.4g}")
+
+            if cur is not None:
+                parts.append(f"current={cur}")
+                if "mean" in s and "min" in s and "max" in s:
+                    spread = s["max"] - s["min"]
+                    if spread > 0:
+                        try:
+                            cur_f = float(cur)
+                            threshold = s["mean"] + 2 * (spread / 4)
+                            if cur_f > threshold or cur_f < s["mean"] - 2 * (spread / 4):
+                                parts.append("⚠ ANOMALY")
+                        except (TypeError, ValueError):
+                            pass
+
+        lines.append(", ".join(parts))
+    return "\n".join(lines) if lines else "No data in InfluxDB."
+
+
+def _build_shift_comparison_text(
+    curr_stats: dict,
+    prev_stats: dict,
+    tag_descs: dict = None,
+) -> str:
+    lines = []
+    for tag_name in sorted(set(curr_stats) | set(prev_stats)):
+        cs = curr_stats.get(tag_name, {})
+        ps = prev_stats.get(tag_name, {})
+        if not cs and not ps:
+            continue
         desc = (tag_descs or {}).get(tag_name)
         label = f"Tag: {tag_name}"
         if desc:
             label += f" [{desc}]"
         parts = [label]
-        if "mean" in s:
-            parts.append(f"mean={s['mean']:.3g}")
-        if "min" in s:
-            parts.append(f"min={s['min']:.3g}")
-        if "max" in s:
-            parts.append(f"max={s['max']:.3g}")
-        if cur is not None:
-            parts.append(f"current={cur}")
-            if "mean" in s and "min" in s and "max" in s:
-                spread = s["max"] - s["min"]
-                if spread > 0:
-                    try:
-                        cur_f = float(cur)
-                        threshold = s["mean"] + 2 * (spread / 4)
-                        if cur_f > threshold or cur_f < s["mean"] - 2 * (spread / 4):
-                            parts.append("⚠ ANOMALY")
-                    except (ValueError, TypeError):
-                        pass
+        for key in ("mean", "min", "max"):
+            c_val = cs.get(key)
+            p_val = ps.get(key)
+            if c_val is None and p_val is None:
+                continue
+            if c_val is not None and p_val is not None:
+                try:
+                    pct = (c_val - p_val) / abs(p_val) * 100 if abs(p_val) > 1e-9 else 0.0
+                    flag = ""
+                    if abs(pct) > 10:
+                        flag = " ⚠ SIGNIFICANT DROP" if pct < 0 else " ⚠ SIGNIFICANT RISE"
+                    parts.append(f"{key}: prev={p_val:.4g} curr={c_val:.4g} ({pct:+.1f}%{flag})")
+                except (TypeError, ValueError):
+                    parts.append(f"{key}: prev={p_val:.4g} curr={c_val:.4g}")
+            elif c_val is not None:
+                parts.append(f"{key}: curr={c_val:.4g} (no prev)")
+            else:
+                parts.append(f"{key}: prev={p_val:.4g} (no curr)")
         lines.append(", ".join(parts))
     return "\n".join(lines) if lines else "No data in InfluxDB."
+
+
+def _save_to_history(analysis_type: str, time_range: str, selected: list, result_chunks: list):
+    if not result_chunks:
+        return
+    entry = {
+        "id":         len(_analysis_history) + 1,
+        "type":       analysis_type,
+        "time_range": time_range,
+        "tags":       selected[:10],
+        "ts":         datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        "preview":    "".join(result_chunks)[:500],
+    }
+    _analysis_history.insert(0, entry)
+    if len(_analysis_history) > 20:
+        _analysis_history.pop()
 
 
 @app.get("/api/ai/analyze/stream")
@@ -1621,40 +1770,77 @@ async def ai_analyze_stream(
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     requested_tags = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
-
-    # Gather InfluxDB stats
     available_tags = influx.list_tags_with_data() if influx.available else []
     if requested_tags:
         selected = [t for t in requested_tags if t in available_tags] or available_tags[:20]
     else:
         selected = available_tags[:20]
 
-    tag_stats: dict = {}
-    for tag_name in selected:
-        tag_stats[tag_name] = influx.stats(tag_name, frm=time_range)
-
-    # Get current PLC values from cache
-    current_values: dict = {}
-    if _tags_cache and "tags" in _tags_cache:
-        for cat_tags in _tags_cache["tags"].values():
-            if isinstance(cat_tags, list):
-                for entry in cat_tags:
-                    if isinstance(entry, dict) and "name" in entry:
-                        current_values[entry["name"]] = entry.get("value")
-
-    # Load tag descriptions for AI context
+    # Load tag configs (types + descriptions)
     async with SessionLocal() as s:
         res = await s.execute(select(TagConfig))
-        tag_descs = {r.tag_name: r.description for r in res.scalars().all() if r.description}
+        all_configs = res.scalars().all()
+        tag_descs = {r.tag_name: r.description for r in all_configs if r.description}
+        tag_types = {r.tag_name: r.tag_type    for r in all_configs}
 
-    context_text = _build_context_text(tag_stats, current_values, tag_descs)
-    intro = custom_prompt.strip() + "\n\n" if custom_prompt.strip() else _ANALYSIS_INTROS.get(analysis_type, _ANALYSIS_INTROS["anomalies"])
-    user_prompt = intro + f"Tag data (period {time_range}):\n{context_text}"
+    period_hours = _parse_period_hours(time_range)
+
+    # ── Shift comparison ─────────────────────────────────────────────────────
+    if analysis_type == "shift_compare":
+        import re as _re
+        m = _re.match(r'-(\d+)([smhd])', time_range.strip())
+        if m:
+            n, u = int(m.group(1)), m.group(2)
+            prev_frm = f"-{2 * n}{u}"
+        else:
+            prev_frm = "-16h"
+
+        async def _fetch_stats_only(tag_name: str, frm: str, to: str):
+            async with _INFLUX_SEM:
+                return tag_name, await asyncio.to_thread(influx.stats, tag_name, frm, to)
+
+        curr_res, prev_res = await asyncio.gather(
+            asyncio.gather(*[_fetch_stats_only(t, time_range, "now()") for t in selected]),
+            asyncio.gather(*[_fetch_stats_only(t, prev_frm, time_range) for t in selected]),
+        )
+        curr_stats = {name: s for name, s in curr_res if s}
+        prev_stats = {name: s for name, s in prev_res if s}
+        context_text = _build_shift_comparison_text(curr_stats, prev_stats, tag_descs)
+        intro        = _ANALYSIS_INTROS["shift_compare"]
+        user_prompt  = intro + f"Shift duration: {time_range[1:]}. Current vs Previous:\n{context_text}"
+
+    # ── Standard enriched analysis ───────────────────────────────────────────
+    else:
+        results = await asyncio.gather(
+            *[_fetch_tag_context(t, tag_types.get(t, ""), time_range) for t in selected]
+        )
+        tag_stats     = {name: s  for name, s, d, u, tl in results}
+        tag_deltas    = {name: d  for name, s, d, u, tl in results}
+        tag_uptimes   = {name: u  for name, s, d, u, tl in results}
+        tag_timelines = {name: tl for name, s, d, u, tl in results}
+
+        current_values: dict = {}
+        if _tags_cache and "tags" in _tags_cache:
+            for cat_tags in _tags_cache["tags"].values():
+                if isinstance(cat_tags, list):
+                    for entry in cat_tags:
+                        if isinstance(entry, dict) and "name" in entry:
+                            current_values[entry["name"]] = entry.get("value")
+
+        context_text = _build_context_text(
+            tag_stats, current_values, tag_descs,
+            tag_types=tag_types, tag_deltas=tag_deltas,
+            tag_uptimes=tag_uptimes, tag_timelines=tag_timelines,
+            period_hours=period_hours,
+        )
+        intro       = custom_prompt.strip() + "\n\n" if custom_prompt.strip() else _ANALYSIS_INTROS.get(analysis_type, _ANALYSIS_INTROS["anomalies"])
+        user_prompt = intro + f"Tag data (period {time_range}):\n{context_text}"
 
     ollama_url, ai_model = await _get_ai_config()
 
     async def generate():
         import httpx
+        _chunks: list = []
         try:
             async with httpx.AsyncClient(timeout=120) as client:
                 async with client.stream(
@@ -1679,6 +1865,7 @@ async def ai_analyze_stream(
                             chunk = json.loads(line)
                             content = chunk.get("message", {}).get("content", "")
                             if content:
+                                _chunks.append(content)
                                 yield f"data: {content}\n\n"
                             if chunk.get("done"):
                                 break
@@ -1688,16 +1875,131 @@ async def ai_analyze_stream(
             yield f"data: [ERROR] Ollama unavailable ({ollama_url}). Run: sudo systemctl start ollama\n\n"
         except Exception as e:
             yield f"data: [ERROR] {e}\n\n"
+        _save_to_history(analysis_type, time_range, selected, _chunks)
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
         generate(),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/ai/context-stats")
+async def ai_context_stats(
+    time_range: str = Query("-8h"),
+    tags:       str = Query(""),
+    token:      str = Query(""),
+):
+    if not _valid_token(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    requested_tags = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+    available_tags = influx.list_tags_with_data() if influx.available else []
+    if requested_tags:
+        selected = [t for t in requested_tags if t in available_tags] or available_tags[:20]
+    else:
+        selected = available_tags[:20]
+
+    async def _fetch(tag_name: str):
+        async with _INFLUX_SEM:
+            return tag_name, await asyncio.to_thread(influx.stats, tag_name, time_range)
+
+    results = await asyncio.gather(*[_fetch(t) for t in selected])
+    return {"tags": {name: s for name, s in results if s}, "time_range": time_range}
+
+
+@app.get("/api/ai/history")
+async def ai_history(token: str = Query("")):
+    if not _valid_token(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return {"history": _analysis_history}
+
+
+@app.get("/api/ai/bg-status")
+async def ai_bg_status(token: str = Query("")):
+    if not _valid_token(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return {"last_ts": _bg_last_ts, "has_risk": _bg_last_has_risk, "interval_min": 30}
+
+
+async def _run_bg_analysis():
+    global _bg_last_has_risk, _bg_last_ts
+    import httpx
+    available_tags = await asyncio.to_thread(influx.list_tags_with_data)
+    selected = available_tags[:20]
+    if not selected:
+        return
+    async with SessionLocal() as s:
+        res = await s.execute(select(TagConfig))
+        all_configs = res.scalars().all()
+        tag_descs = {r.tag_name: r.description for r in all_configs if r.description}
+        tag_types = {r.tag_name: r.tag_type    for r in all_configs}
+    results = await asyncio.gather(
+        *[_fetch_tag_context(t, tag_types.get(t, ""), "-1h") for t in selected]
+    )
+    tag_stats     = {name: s  for name, s, d, u, tl in results}
+    tag_deltas    = {name: d  for name, s, d, u, tl in results}
+    tag_uptimes   = {name: u  for name, s, d, u, tl in results}
+    tag_timelines = {name: tl for name, s, d, u, tl in results}
+    context_text = _build_context_text(
+        tag_stats, {}, tag_descs,
+        tag_types=tag_types, tag_deltas=tag_deltas,
+        tag_uptimes=tag_uptimes, tag_timelines=tag_timelines,
+        period_hours=1.0,
+    )
+    user_prompt = _ANALYSIS_INTROS["breakdown_risk"] + f"Tag data (last 1 hour):\n{context_text}"
+    ollama_url, ai_model = await _get_ai_config()
+    full_chunks: list = []
+    try:
+        async with httpx.AsyncClient(timeout=180) as client:
+            async with client.stream(
+                "POST", f"{ollama_url}/api/chat",
+                json={
+                    "model": ai_model,
+                    "messages": [
+                        {"role": "system", "content": _SYSTEM_PROMPT},
+                        {"role": "user",   "content": user_prompt},
+                    ],
+                    "stream": True,
+                },
+            ) as resp:
+                if resp.status_code != 200:
+                    print(f"[AI_BG] Ollama returned {resp.status_code}")
+                    return
+                async for line in resp.aiter_lines():
+                    if not line:
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                        content = chunk.get("message", {}).get("content", "")
+                        if content:
+                            full_chunks.append(content)
+                        if chunk.get("done"):
+                            break
+                    except json.JSONDecodeError:
+                        pass
+    except Exception as e:
+        print(f"[AI_BG] Ollama error: {e}")
+        return
+    if not full_chunks:
+        return
+    result_text = "".join(full_chunks)
+    has_risk = any(kw in result_text.upper() for kw in ("CRITICAL", "WARNING"))
+    _bg_last_has_risk = has_risk
+    _bg_last_ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    _save_to_history("breakdown_risk (auto)", "-1h", selected, full_chunks)
+    print(f"[AI_BG] done, has_risk={has_risk}")
+
+
+async def _bg_analysis_loop():
+    await asyncio.sleep(120)  # grace period after startup
+    while not (shutdown_event and shutdown_event.is_set()):
+        try:
+            if influx.available:
+                await _run_bg_analysis()
+        except Exception as e:
+            print(f"[AI_BG] loop error: {e}")
+        await asyncio.sleep(1800)  # 30 minutes
 
 
 # ============================================================================

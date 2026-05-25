@@ -888,6 +888,12 @@ body.no-left .right-panel { padding: 0; }
   width: 100%; box-sizing: border-box;
 }
 .tag-name-cell { font-family: var(--font-mono); word-break: break-all; }
+.trend-up   { color: var(--dot-success); font-weight: 600; }
+.trend-down { color: var(--dot-error);   font-weight: 600; }
+.trend-flat { color: var(--fg-muted); }
+.tag-status-normal { color: var(--dot-success); font-size: 11px; }
+.tag-status-watch  { color: var(--dot-warning); font-size: 11px; font-weight: 600; }
+.tag-status-alert  { color: var(--dot-error);   font-size: 11px; font-weight: 700; }
 .mode-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .mode-pill.on_change   { background: rgba(74,167,133,0.12); color: #2F7C5C; }
 .mode-pill.on_interval { background: var(--card-lavender); color: #4A3FA0; }

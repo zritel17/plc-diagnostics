@@ -28,7 +28,7 @@
             <div class="tab" data-tab="dashboards">Dashboards</div>
             <div class="tab" data-tab="collector">Tags</div>
             <div class="tab" data-tab="recipes">Recipes</div>
-            <div class="tab" data-tab="ai">AI Analytics</div>
+            <div class="tab" data-tab="ai">AI Analytics <span id="aiRiskBadge" style="display:none;background:var(--dot-error);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;vertical-align:middle;font-weight:700;">!</span></div>
             <div class="tab" data-tab="database">⊞ Database</div>
             <div class="tab" data-tab="settings">⚙ Settings</div>
         </nav>
@@ -360,6 +360,15 @@
 
                 <!-- AI Analytics -->
                 <div id="aiView" class="full-view" style="display:none;">
+
+                    <!-- Background risk notice -->
+                    <div class="card alert-error" id="aiRiskNotice" style="display:none;flex-shrink:0;">
+                        <div class="card-body" style="padding:10px 14px;">
+                            <strong>⚠ Auto-analysis found risks</strong> — last check: <span id="aiRiskNoticeTs" style="font-size:12px;"></span>.
+                            Run <em>Breakdown Risk</em> for details.
+                        </div>
+                    </div>
+
                     <div class="card" style="flex-shrink:0;">
                         <div class="card-title">AI Analytics — PLC Data</div>
                         <div class="card-body">
@@ -367,7 +376,7 @@
                                 <label>Period</label>
                                 <select id="aiTimeRange">
                                     <option value="-1h">1 hour</option>
-                                    <option value="-8h" selected>8 hours</option>
+                                    <option value="-8h" selected>8 hours (1 shift)</option>
                                     <option value="-24h">24 hours</option>
                                     <option value="-7d">7 days</option>
                                 </select>
@@ -375,10 +384,12 @@
                                     <input type="checkbox" id="aiFavOnly" /> ★ Favorites only
                                 </label>
                             </div>
-                            <div class="card-actions" style="margin-top:10px;">
+                            <div class="card-actions" style="margin-top:10px;flex-wrap:wrap;gap:6px;">
                                 <button class="btn" id="aiAnomaliesBtn">⚡ Anomalies</button>
                                 <button class="btn btn-secondary" id="aiDiagnosticsBtn">Diagnostics</button>
                                 <button class="btn btn-secondary" id="aiReportBtn">Report</button>
+                                <button class="btn btn-secondary" id="aiBreakdownBtn">⚠ Breakdown Risk</button>
+                                <button class="btn btn-secondary" id="aiShiftCompareBtn">⇆ Shift Compare</button>
                                 <button class="btn btn-secondary btn-small" id="aiStopBtn" style="display:none;">✕ Stop</button>
                             </div>
                         </div>
@@ -401,6 +412,27 @@
                         </div>
                     </div>
 
+                    <!-- Quick stats table (appears before AI result) -->
+                    <div class="card" id="aiStatsCard" style="display:none;flex-shrink:0;">
+                        <div class="card-title">Tag Overview</div>
+                        <div class="card-body" style="padding:0;overflow:auto;">
+                            <table class="data-table" id="aiStatsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Tag</th>
+                                        <th>Trend</th>
+                                        <th>Min</th>
+                                        <th>Mean</th>
+                                        <th>Max</th>
+                                        <th>Current</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="aiStatsBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div class="card" id="aiResultCard" style="display:none;">
                         <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
                             <span id="aiResultTitle">Result</span>
@@ -416,6 +448,16 @@
                             <div id="aiStatusMsg" style="font-size:13px; color:var(--fg-muted);"></div>
                         </div>
                     </div>
+
+                    <!-- Analysis history -->
+                    <div class="card" id="aiHistoryCard" style="display:none;">
+                        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>Past Analyses</span>
+                            <button class="btn btn-secondary btn-small" id="aiHistoryRefreshBtn">Refresh</button>
+                        </div>
+                        <div id="aiHistoryList"></div>
+                    </div>
+
                 </div>
 
                 <!-- Database tab -->
@@ -589,7 +631,7 @@
     <script src="/static/control.js?v=36"></script>
     <script src="/static/diagnostics.js?v=36"></script>
     <script src="/static/recipes.js?v=36"></script>
-    <script src="/static/ai.js?v=36"></script>
+    <script src="/static/ai.js?v=37"></script>
     <script src="/static/settings.js?v=36"></script>
     <script src="/static/database.js?v=36"></script>
     <script src="/static/init_extras.js?v=36"></script>
