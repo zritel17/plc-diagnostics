@@ -225,8 +225,8 @@ window.Dashboards = (() => {
         const type = document.getElementById('widType')?.value;
         const gaugeRow = document.getElementById('wGaugeRow');
         const threshRow = document.getElementById('wThresholdRow');
-        if (gaugeRow)  gaugeRow.style.display  = type === 'gauge'      ? '' : 'none';
-        if (threshRow) threshRow.style.display = type === 'line_chart' ? '' : 'none';
+        if (gaugeRow)  gaugeRow.style.display  = type === 'gauge' ? '' : 'none';
+        if (threshRow) threshRow.style.display = (type === 'line_chart' || type === 'gauge') ? '' : 'none';
     }
 
     async function removeWidget(widgetId) {
@@ -372,16 +372,56 @@ window.Dashboards = (() => {
                 const allVals = points.map(p => +p.value).filter(v => !isNaN(v));
                 const min     = w.gauge_min != null ? +w.gauge_min : Math.min(...allVals);
                 const max     = w.gauge_max != null ? +w.gauge_max : Math.max(...allVals);
-                const pct     = (max === min) ? 50 : Math.max(0, Math.min(100, ((last - min) / (max - min)) * 100));
+                const span    = max - min;
+                const pct     = (span === 0) ? 50 : Math.max(0, Math.min(100, ((last - min) / span) * 100));
                 const clr     = w.color || null;
-                const barStyle = clr
-                    ? `background:${clr};`
-                    : 'background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);';
+
+                // Threshold zones (only thresholds that fall inside min..max are drawn)
+                const th = {
+                    hh: w.threshold_hh != null ? +w.threshold_hh : null,
+                    h:  w.threshold_h  != null ? +w.threshold_h  : null,
+                    l:  w.threshold_l  != null ? +w.threshold_l  : null,
+                    ll: w.threshold_ll != null ? +w.threshold_ll : null,
+                };
+                const hasZones = th.hh != null || th.h != null || th.l != null || th.ll != null;
+
+                const zoneColor = (v) => {
+                    if (th.hh != null && v >= th.hh) return '#ef4444';
+                    if (th.h  != null && v >= th.h)  return '#f59e0b';
+                    if (th.ll != null && v <= th.ll) return '#ef4444';
+                    if (th.l  != null && v <= th.l)  return '#f59e0b';
+                    return '#22c55e';
+                };
+                const toPct = (v) => (span === 0 ? 0 : Math.max(0, Math.min(100, ((v - min) / span) * 100)));
+
+                let trackInner;
+                if (hasZones) {
+                    const bounds = [min, max];
+                    [th.ll, th.l, th.h, th.hh].forEach(v => {
+                        if (v != null && v > min && v < max) bounds.push(v);
+                    });
+                    bounds.sort((a, b) => a - b);
+                    let segs = '';
+                    for (let i = 0; i < bounds.length - 1; i++) {
+                        const a = bounds[i], b = bounds[i + 1];
+                        if (b <= a) continue;
+                        const col = zoneColor((a + b) / 2);
+                        segs += `<div style="position:absolute;top:0;bottom:0;left:${toPct(a).toFixed(1)}%;width:${(toPct(b) - toPct(a)).toFixed(1)}%;background:${col};opacity:0.45;"></div>`;
+                    }
+                    trackInner = segs +
+                        `<div style="position:absolute;top:-3px;bottom:-3px;left:${pct.toFixed(1)}%;width:3px;background:var(--fg,#e2e8f0);border-radius:2px;transform:translateX(-50%);"></div>`;
+                } else {
+                    const barStyle = clr
+                        ? `background:${clr};`
+                        : 'background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);';
+                    trackInner = `<div style="${barStyle}height:100%;width:${pct.toFixed(1)}%;transition:width 0.3s;"></div>`;
+                }
+                const valColor = hasZones ? zoneColor(last) : 'var(--fg)';
                 body.innerHTML = `
                     <div style="text-align:center;width:100%;">
-                        <div class="stat-value">${formatVal(last)}</div>
-                        <div style="background:#0f172a;height:14px;border-radius:7px;overflow:hidden;margin:10px 0;border:1px solid #334155;">
-                            <div style="${barStyle}height:100%;width:${pct.toFixed(1)}%;transition:width 0.3s;"></div>
+                        <div class="stat-value" style="color:${valColor};">${formatVal(last)}</div>
+                        <div style="position:relative;background:#0f172a;height:14px;border-radius:7px;overflow:hidden;margin:10px 0;border:1px solid #334155;">
+                            ${trackInner}
                         </div>
                         <div class="stat-meta">${formatVal(min)} … ${formatVal(max)}</div>
                     </div>`;
