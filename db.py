@@ -243,6 +243,20 @@ class InfluxClient:
             self.last_error = f"list_tags: {e}"
             return []
 
+    def _select_bucket(self, frm: str) -> str:
+        """Выбрать оптимальный bucket по диапазону запроса."""
+        import re
+        m = re.match(r'-(\d+)([smhd])', (frm or '').strip())
+        if not m:
+            return INFLUX_BUCKET_RAW
+        n, u = int(m.group(1)), m.group(2)
+        seconds = n * {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}[u]
+        if seconds > 7 * 86400:      # > 7 дней → daily bucket
+            return INFLUX_BUCKET_DAILY
+        if seconds > 24 * 3600:      # > 24 часов → hourly bucket
+            return INFLUX_BUCKET_HOURLY
+        return INFLUX_BUCKET_RAW
+
     def query_history(
         self,
         tag_name: str,
@@ -254,11 +268,13 @@ class InfluxClient:
     ) -> List[Dict[str, Any]]:
         if not self.available:
             return []
-        b = {
-            "raw": INFLUX_BUCKET_RAW,
-            "hourly": INFLUX_BUCKET_HOURLY,
-            "daily": INFLUX_BUCKET_DAILY,
-        }.get(bucket, INFLUX_BUCKET_RAW)
+        if bucket == "raw":
+            b = self._select_bucket(frm)
+        else:
+            b = {
+                "hourly": INFLUX_BUCKET_HOURLY,
+                "daily": INFLUX_BUCKET_DAILY,
+            }.get(bucket, INFLUX_BUCKET_RAW)
 
         def _range_sec(f: str) -> int:
             import re as _re
