@@ -35,6 +35,7 @@ from models import (
     CollectorSettingsModel, CollectorStatus,
     WidgetIn, WidgetOut, DashboardIn, DashboardOut, DashboardUpdate,
     RecipeSnapshotCreate, RecipeChangesPayload,
+    BatchItem, BatchDataRequest,
 )
 from collector import collector
 
@@ -1270,6 +1271,43 @@ async def data_timeline(tag_name: str, range: str = Query("8h")):
 async def data_uptime(tag_name: str, range: str = Query("8h")):
     result = await asyncio.to_thread(influx.query_uptime, tag_name, f"-{range}")
     return result
+
+
+@app.post("/api/data/batch")
+async def get_batch_data(body: BatchDataRequest):
+    async def fetch_one(item: BatchItem):
+        try:
+            if item.type == "history":
+                return await asyncio.to_thread(
+                    influx.query_history, item.tag, f"-{item.range}",
+                    "now()", "raw", (item.agg or None), item.max_points
+                )
+            elif item.type == "stats":
+                return await asyncio.to_thread(influx.stats, item.tag, f"-{item.range}")
+            elif item.type == "bars":
+                return await asyncio.to_thread(
+                    influx.query_bars, item.tag, item.window, item.count, item.agg
+                )
+            elif item.type == "delta":
+                return await asyncio.to_thread(influx.query_delta, item.tag, f"-{item.range}")
+            elif item.type == "uptime":
+                return await asyncio.to_thread(influx.query_uptime, item.tag, f"-{item.range}")
+            elif item.type == "timeline":
+                return await asyncio.to_thread(influx.query_timeline, item.tag, f"-{item.range}")
+            else:
+                return {"error": f"unknown type: {item.type}"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    tasks = [fetch_one(item) for item in body.items]
+    results = await asyncio.gather(*tasks)
+
+    # Ключ = "tag::type" чтобы один тег мог использоваться разными виджетами
+    output = {}
+    for item, result in zip(body.items, results):
+        output[f"{item.tag}::{item.type}"] = result
+
+    return {"results": output}
 
 
 # ============================================================================

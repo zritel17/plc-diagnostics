@@ -109,6 +109,22 @@ class DashboardUpdate(BaseModel):
     widgets: Optional[List[WidgetIn]] = None  # если заданы — заменить полностью
 
 
+# ===== Batch data =====
+
+class BatchItem(BaseModel):
+    tag: str
+    type: str            # "history" | "stats" | "bars" | "delta" | "uptime" | "timeline"
+    range: str = "1h"
+    agg: str = "mean"
+    window: str = "8h"
+    count: int = 7
+    max_points: int = 200
+
+
+class BatchDataRequest(BaseModel):
+    items: List[BatchItem]
+
+
 # ===== Recipes =====
 
 class RecipeSnapshotCreate(BaseModel):
