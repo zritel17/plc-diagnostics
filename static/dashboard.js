@@ -9,6 +9,7 @@ window.Dashboards = (() => {
     let realtimeIntervals = new Map();
     let availableTags = [];
     let _editingWidgetId = null;
+    let _refreshTimer = null;
 
     const REALTIME_RANGE = '-30s';
     const REALTIME_INTERVAL_MS = 500;
@@ -591,6 +592,14 @@ window.Dashboards = (() => {
             ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
+    function setAutoRefresh(seconds) {
+        if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
+        if (seconds > 0) {
+            _refreshTimer = setInterval(() => { if (current) loadDashboard(current.id); }, seconds * 1000);
+        }
+        localStorage.setItem('plc_dash_autorefresh', String(seconds));
+    }
+
     function init() {
         const sel = document.getElementById('dashSelect');
         if (!sel) return;
@@ -602,6 +611,13 @@ window.Dashboards = (() => {
         document.getElementById('widAddBtn').addEventListener('click', addWidget);
         document.getElementById('widCancelEditBtn')?.addEventListener('click', cancelEdit);
         document.getElementById('widType')?.addEventListener('change', updateTypeOptions);
+        const arSel = document.getElementById('dashAutoRefresh');
+        if (arSel) {
+            const saved = parseInt(localStorage.getItem('plc_dash_autorefresh') || '0', 10);
+            arSel.value = String(saved);
+            arSel.addEventListener('change', e => setAutoRefresh(parseInt(e.target.value, 10) || 0));
+            setAutoRefresh(saved);
+        }
         updateTypeOptions();
     }
 
